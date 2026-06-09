@@ -105,6 +105,8 @@ class AppConstants:
         "tonnes_co2": 1000.0,
     }
 
+    VERTEX_AI_PROJECT_ID: Final[str] = "carbon-footprint-12"
+    VERTEX_AI_LOCATION: Final[str] = "us-central1"
     VERTEX_AI_MODEL_NAME: Final[str] = "gemini-2.5-flash"
     VERTEX_AI_TIMEOUT_SECONDS: Final[int] = 30
     VERTEX_AI_MAX_OUTPUT_TOKENS: Final[int] = 1024

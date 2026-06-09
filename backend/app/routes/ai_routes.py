@@ -147,14 +147,7 @@ async def chat(
     Raises:
         HTTPException: 500 if the Vertex AI service call fails.
     """
-    user_data: dict[str, Any] = {
-        "user_id": payload.user_id,
-        "total_co2e_kg": payload.total_co2e_kg,
-        "period_days": payload.period_days,
-        "emission_breakdown": [
-            entry.model_dump() for entry in payload.emission_breakdown
-        ],
-    }
+    user_data: dict[str, Any] = _build_user_data_payload(payload)
     conversation_history: list[dict[str, str]] = [
         msg.model_dump() for msg in payload.conversation_history
     ]

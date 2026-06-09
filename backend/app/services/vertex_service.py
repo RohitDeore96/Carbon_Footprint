@@ -276,7 +276,9 @@ class VertexAiService:
         else:
             # Use Vertex AI with GCP service account credentials
             self._client = genai.Client(
-                vertexai=True, project="carbon-footprint-12", location="us-central1"
+                vertexai=True,
+                project=AppConstants.VERTEX_AI_PROJECT_ID,
+                location=AppConstants.VERTEX_AI_LOCATION,
             )
         self._model_name: str = AppConstants.VERTEX_AI_MODEL_NAME
         self._config: types.GenerateContentConfig = _build_generation_config()

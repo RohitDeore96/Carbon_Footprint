@@ -12,13 +12,6 @@ from app.utils.carbon_calculator import (
     calculate_transport_emission,
 )
 
-_CATEGORY_PROCESSORS: dict[str, str] = {
-    "transport": "transport",
-    "energy": "energy",
-    "food": "food",
-    "consumption": "consumption",
-}
-
 
 def _process_transport_entry(entry: ActivityEntry) -> float:
     """Compute CO2e for a transport activity entry.

@@ -21,6 +21,7 @@ import type {
   CarbonCalculationResponse,
   EmissionSummaryEntry,
 } from '../../services/apiClient';
+import { APP_CONSTANTS } from '../../constants/app.constants';
 
 // ---------------------------------------------------------------------------
 // Prop interfaces
@@ -175,15 +176,10 @@ function SummaryStats({
 // Emission Chart Component
 // ---------------------------------------------------------------------------
 
-const BENCHMARK_LINE = 5.5; // kg CO2e per day global average
-const PARIS_TARGET = 2.5; // kg CO2e per day Paris Agreement target
+const BENCHMARK_LINE = APP_CONSTANTS.BENCHMARK_GLOBAL_DAILY_AVG_KG; // kg CO2e per day global average
+const PARIS_TARGET = APP_CONSTANTS.BENCHMARK_PARIS_TARGET_KG; // kg CO2e per day Paris Agreement target
 
-const CATEGORY_COLORS: Record<string, string> = {
-  transport: '#818cf8',
-  energy: '#34d399',
-  food: '#fbbf24',
-  consumption: '#f87171',
-};
+const CATEGORY_COLORS: Record<string, string> = { ...APP_CONSTANTS.CATEGORY_COLORS };
 
 function EmissionChart({
   breakdown,

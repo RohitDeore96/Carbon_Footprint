@@ -1,4 +1,21 @@
-"""Pydantic validation schemas mirroring frontend Zod definitions for carbon footprint payloads."""
+"""Pydantic validation schemas for the Carbon Footprint Awareness Platform.
+
+Re-exports all schema models from sub-modules for clean imports:
+    from app.schemas import CarbonCalculationRequest
+"""
+
+from app.schemas.ai_schemas import (
+    ChatMessage,
+    ChatRequest,
+    ChatResponse,
+    EmissionSummaryEntry,
+    InsightsRequest,
+    InsightsResponse,
+)
+
+# ---------------------------------------------------------------------------
+# Carbon footprint schemas (defined here for backward compatibility)
+# ---------------------------------------------------------------------------
 
 from enum import Enum
 
@@ -116,3 +133,26 @@ class CarbonCalculationResponse(BaseModel):
     entry_count: int
     results: list[EmissionResult]
     document_id: str
+
+
+__all__ = [
+    "ActivityCategory",
+    "ActivityEntry",
+    "CarbonCalculationRequest",
+    "CarbonCalculationResponse",
+    "CarbonUnit",
+    "ChatMessage",
+    "ChatRequest",
+    "ChatResponse",
+    "ConsumptionMetrics",
+    "DietMetrics",
+    "DietType",
+    "EmissionResult",
+    "EmissionSummaryEntry",
+    "EnergyMetrics",
+    "EnergySource",
+    "InsightsRequest",
+    "InsightsResponse",
+    "TransportMetrics",
+    "TransportMode",
+]

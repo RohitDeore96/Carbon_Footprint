@@ -10,7 +10,10 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from google.cloud import firestore
+from firebase_admin import firestore
+from google.cloud.firestore_v1.client import Client as FirestoreClient
+
+from app.services.firebase_service import _get_firestore_client
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +34,11 @@ def _compute_cache_key(user_data: dict[str, Any]) -> str:
     return hashlib.sha256(canonical.encode()).hexdigest()
 
 
+def _get_db() -> FirestoreClient:
+    """Return a shared Firestore client via the centralised firebase_service module."""
+    return _get_firestore_client()
+
+
 def get_cached_insight(
     user_data: dict[str, Any],
     ttl_hours: int = DEFAULT_CACHE_TTL_HOURS,
@@ -46,7 +54,7 @@ def get_cached_insight(
     """
     try:
         key = _compute_cache_key(user_data)
-        db = firestore.Client()
+        db = _get_db()
         doc = db.collection(CACHE_COLLECTION).document(key).get()
 
         if not doc.exists:
@@ -85,7 +93,7 @@ def set_cached_insight(
     """
     try:
         key = _compute_cache_key(user_data)
-        db = firestore.Client()
+        db = _get_db()
         db.collection(CACHE_COLLECTION).document(key).set(
             {
                 "cached_at": datetime.now(timezone.utc),

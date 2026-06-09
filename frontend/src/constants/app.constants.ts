@@ -1,3 +1,11 @@
+/**
+ * Centralised application constants for the Carbon Footprint Awareness Platform.
+ *
+ * All magic values (API URLs, model names, ARIA labels, etc.) are defined here
+ * to ensure a single source of truth and easy maintainability.
+ * Import as `APP_CONSTANTS` — never hard-code these values in components.
+ */
+
 export const APP_CONSTANTS = {
   APP_NAME: 'Carbon Footprint Awareness Platform',
   APP_VERSION: '1.0.0',
@@ -8,6 +16,18 @@ export const APP_CONSTANTS = {
   COACH_RESPONSE_ARIA_LABEL: 'AI coach response',
   COACH_LOADING_ARIA_LABEL: 'Generating sustainability insights from Gemini AI',
   FORM_ARIA_LABEL: 'Log a carbon footprint activity',
+
+  // Emission benchmark reference values (kg CO2e per day)
+  BENCHMARK_GLOBAL_DAILY_AVG_KG: 5.5,
+  BENCHMARK_PARIS_TARGET_KG: 2.5,
+
+  // Chart category colours
+  CATEGORY_COLORS: {
+    transport: '#818cf8',
+    energy: '#34d399',
+    food: '#fbbf24',
+    consumption: '#f87171',
+  } as const,
 } as const;
 
 export type AppConstants = typeof APP_CONSTANTS;
