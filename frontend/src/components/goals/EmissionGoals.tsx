@@ -12,7 +12,6 @@ import React, { useState, useCallback } from 'react';
 // ---------------------------------------------------------------------------
 
 export interface EmissionGoalsProps {
-  readonly userId: string;
   readonly totalCo2eKg: number;
   readonly periodDays: number;
 }
@@ -82,8 +81,6 @@ export function EmissionGoals({
     const stored = loadGoal();
     return String(stored?.monthlyTargetKg ?? DEFAULT_MONTHLY_TARGET);
   });
-  const [goalLoaded] = useState(true); // always true since lazy init handles loading
-
   const handleSetGoal = useCallback((): void => {
     const target = parseFloat(inputValue);
     if (isNaN(target) || target <= 0) return;
@@ -96,9 +93,6 @@ export function EmissionGoals({
     setGoal(null);
     setInputValue(String(DEFAULT_MONTHLY_TARGET));
   }, []);
-
-  // Don't render until localStorage has been checked
-  if (!goalLoaded) return <></>;
 
   // No goal set — show the "Set Goal" form
   if (goal === null) {

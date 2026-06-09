@@ -1,16 +1,64 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Component, type ErrorInfo, type ReactNode } from 'react';
 import { AppLayout } from './components/layout/AppLayout';
 import { CarbonDashboard } from './components/dashboard/CarbonDashboard';
 import { ToastProvider } from './components/ui/Toast';
 import { signInAnonymouslyAndGetUser, onAuthChange } from './services/firebase';
 import OnboardingModal from './components/onboarding/OnboardingModal';
+import { APP_CONSTANTS } from './constants/app.constants';
 import './App.css';
+
+// ---------------------------------------------------------------------------
+// Error Boundary — prevents unhandled runtime errors from crashing the whole app
+// ---------------------------------------------------------------------------
+
+interface ErrorBoundaryProps {
+  readonly children: ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  state: ErrorBoundaryState = { hasError: false, error: null };
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo): void {
+    console.error('ErrorBoundary caught an unhandled error:', error, info);
+  }
+
+  render(): ReactNode {
+    if (this.state.hasError) {
+      return (
+        <div role="alert" className="error-boundary-fallback">
+          <h2>Something went wrong</h2>
+          <p>{this.state.error?.message ?? 'An unexpected error occurred.'}</p>
+          <button
+            type="button"
+            onClick={() => this.setState({ hasError: false, error: null })}
+          >
+            Try Again
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Root Application Component
+// ---------------------------------------------------------------------------
 
 /**
  * Root application component.
  * Uses Firebase Anonymous Authentication to assign each user a unique identity.
- * Falls back to 'anonymous-fallback' if Firebase auth fails.
- * Wrapped with ToastProvider for global notification support.
+ * Falls back to APP_CONSTANTS.ANONYMOUS_USER_ID if Firebase auth fails.
+ * Single ToastProvider wraps entire app to avoid duplicate context instances.
  */
 export default function App(): React.JSX.Element {
   const [userId, setUserId] = useState<string | null>(null);
@@ -27,8 +75,9 @@ export default function App(): React.JSX.Element {
             setUserId(uid);
             setLoading(false);
           })
-          .catch(() => {
-            setUserId('anonymous-fallback');
+          .catch((err: unknown) => {
+            console.error('Firebase anonymous auth failed, using fallback:', err);
+            setUserId(APP_CONSTANTS.ANONYMOUS_USER_ID);
             setLoading(false);
           });
       }
@@ -36,26 +85,24 @@ export default function App(): React.JSX.Element {
     return () => unsubscribe();
   }, []);
 
-  if (loading) {
-    return (
-      <ToastProvider>
-        <AppLayout>
-          <div role="status" aria-live="polite" aria-label="Loading application">
-            <span className="loading-spinner" aria-hidden="true" />
-            <p>Initializing Carbon Footprint Platform...</p>
-          </div>
-        </AppLayout>
-      </ToastProvider>
-    );
-  }
-
   return (
     <ToastProvider>
-      <OnboardingModal />
-      <AppLayout>
-        <h1 className="sr-only">Carbon Footprint Awareness Platform</h1>
-        <CarbonDashboard userId={userId ?? 'anonymous-fallback'} />
-      </AppLayout>
+      <ErrorBoundary>
+        <AppLayout>
+          {loading ? (
+            <div role="status" aria-live="polite" aria-label="Loading application">
+              <span className="loading-spinner" aria-hidden="true" />
+              <p>Initializing Carbon Footprint Platform...</p>
+            </div>
+          ) : (
+            <>
+              <OnboardingModal />
+              <h1 className="sr-only">Carbon Footprint Awareness Platform</h1>
+              <CarbonDashboard userId={userId ?? APP_CONSTANTS.ANONYMOUS_USER_ID} />
+            </>
+          )}
+        </AppLayout>
+      </ErrorBoundary>
     </ToastProvider>
   );
 }

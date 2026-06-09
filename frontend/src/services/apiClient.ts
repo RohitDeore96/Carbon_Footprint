@@ -2,9 +2,18 @@
  * Strongly typed API client for the Carbon Footprint Awareness Platform backend.
  * Uses Axios with explicit request/response interfaces mirroring backend Pydantic schemas.
  * All error states are typed — zero implicit `any`.
+ *
+ * **Error Handling Contract**: Every method returns `ApiResult<T>` — a discriminated union.
+ * - Success: `{ success: true, data: T }` — use the data directly
+ * - Failure: `{ success: false, error: ApiError }` — never throws
+ *
+ * **Authentication**: Firebase ID tokens are automatically attached via an Axios
+ * request interceptor. The backend falls back to anonymous access when no token
+ * is provided.
  */
 
 import axios, { AxiosError, type AxiosInstance, type AxiosResponse } from 'axios';
+import { getAuth } from 'firebase/auth';
 import { APP_CONSTANTS } from '../constants/app.constants';
 
 // ---------------------------------------------------------------------------
@@ -27,7 +36,7 @@ export interface DietMetrics {
 }
 
 export interface ConsumptionMetrics {
-  readonly item_type: string;
+  readonly item_type: 'clothing' | 'electronics' | 'furniture' | 'general';
   readonly quantity: number;
 }
 
@@ -129,15 +138,32 @@ function buildApiError(err: AxiosError): ApiError {
 }
 
 // ---------------------------------------------------------------------------
-// Axios Instance
+// Axios Instance with Auth Interceptor
 // ---------------------------------------------------------------------------
 
 function createAxiosInstance(): AxiosInstance {
-  return axios.create({
+  const instance = axios.create({
     baseURL: APP_CONSTANTS.API_BASE_URL,
     headers: { 'Content-Type': 'application/json' },
     timeout: 30000,
   });
+
+  // Automatically attach Firebase ID token to every request
+  instance.interceptors.request.use(async (config) => {
+    try {
+      const auth = getAuth();
+      const user = auth.currentUser;
+      if (user) {
+        const token = await user.getIdToken();
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    } catch {
+      // If token retrieval fails, proceed without auth — backend will use anonymous
+    }
+    return config;
+  });
+
+  return instance;
 }
 
 const httpClient: AxiosInstance = createAxiosInstance();
@@ -202,14 +228,6 @@ export interface FootprintHistoryResponse {
   readonly period_days: number;
 }
 
-export interface FootprintSummaryResponse {
-  readonly user_id: string;
-  readonly period_days: number;
-  readonly total_co2e_kg: number;
-  readonly entry_count: number;
-  readonly category_breakdown: readonly { category: string; total_co2e_kg: number }[];
-}
-
 async function getFootprintHistory(
   userId: string,
   periodDays: number = 30,
@@ -217,21 +235,6 @@ async function getFootprintHistory(
   try {
     const response: AxiosResponse<FootprintHistoryResponse> = await httpClient.get(
       `/api/v1/footprint/history/${userId}`,
-      { params: { period_days: periodDays } },
-    );
-    return { success: true, data: response.data };
-  } catch (err) {
-    return { success: false, error: buildApiError(err as AxiosError) };
-  }
-}
-
-async function getFootprintSummary(
-  userId: string,
-  periodDays: number = 30,
-): Promise<ApiResult<FootprintSummaryResponse>> {
-  try {
-    const response: AxiosResponse<FootprintSummaryResponse> = await httpClient.get(
-      `/api/v1/footprint/summary/${userId}`,
       { params: { period_days: periodDays } },
     );
     return { success: true, data: response.data };
@@ -259,5 +262,4 @@ export const apiClient = {
   postInsightsRequest,
   postChatRequest,
   getFootprintHistory,
-  getFootprintSummary,
 } as const;

@@ -5,7 +5,7 @@
  * toast notifications, auto-generated insights, and conversational AI chat.
  */
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LineChart, Line } from 'recharts';
 import { LogActivityForm } from '../footprint/LogActivityForm';
 import { InsightCoach } from '../coach/InsightCoach';
@@ -32,8 +32,12 @@ interface CarbonDashboardProps {
 }
 
 // ---------------------------------------------------------------------------
-// Emission ledger aggregation
+// Utility helpers
 // ---------------------------------------------------------------------------
+
+function roundCo2e(value: number): number {
+  return Math.round(value * 10000) / 10000;
+}
 
 function buildEmissionBreakdown(
   logs: readonly CarbonCalculationResponse[],
@@ -59,21 +63,33 @@ function buildEmissionBreakdown(
   }
   return Array.from(categoryMap.entries()).map(([category, data]) => ({
     category,
-    total_co2e_kg: Math.round(data.total * 10000) / 10000,
+    total_co2e_kg: roundCo2e(data.total),
     entry_count: data.count,
     description: data.desc,
   }));
 }
 
 function computeTotalCo2e(logs: readonly CarbonCalculationResponse[]): number {
-  return Math.round(logs.reduce((sum, log) => sum + log.total_co2e_kg, 0) * 10000) / 10000;
+  return roundCo2e(logs.reduce((sum, log) => sum + log.total_co2e_kg, 0));
+}
+
+function computePeriodDays(logs: readonly CarbonCalculationResponse[]): number {
+  if (logs.length === 0) return 1;
+  const dates = logs
+    .map((log) => log.results[0]?.date?.slice(0, 10))
+    .filter((d): d is string => d !== undefined);
+  if (dates.length === 0) return 1;
+  const minDate = dates.reduce((a, b) => (a < b ? a : b));
+  const maxDate = dates.reduce((a, b) => (a > b ? a : b));
+  const diffMs = new Date(maxDate).getTime() - new Date(minDate).getTime();
+  return Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
 }
 
 // ---------------------------------------------------------------------------
-// Sub-components
+// Sub-components (memoized for performance)
 // ---------------------------------------------------------------------------
 
-function DashboardStat({
+const DashboardStat = React.memo(function DashboardStat({
   label,
   value,
   unit,
@@ -95,7 +111,7 @@ function DashboardStat({
       <span className="stat-label">{label}</span>
     </article>
   );
-}
+});
 
 function EmptyLogState(): React.JSX.Element {
   return (
@@ -106,7 +122,7 @@ function EmptyLogState(): React.JSX.Element {
   );
 }
 
-function ActivityLogList({
+const ActivityLogList = React.memo(function ActivityLogList({
   logs,
 }: {
   readonly logs: readonly CarbonCalculationResponse[];
@@ -139,9 +155,9 @@ function ActivityLogList({
       ))}
     </ol>
   );
-}
+});
 
-function SummaryStats({
+const SummaryStats = React.memo(function SummaryStats({
   logs,
 }: {
   readonly logs: readonly CarbonCalculationResponse[];
@@ -170,25 +186,25 @@ function SummaryStats({
       />
     </div>
   );
-}
+});
 
 // ---------------------------------------------------------------------------
 // Emission Chart Component
 // ---------------------------------------------------------------------------
 
-const BENCHMARK_LINE = APP_CONSTANTS.BENCHMARK_GLOBAL_DAILY_AVG_KG; // kg CO2e per day global average
-const PARIS_TARGET = APP_CONSTANTS.BENCHMARK_PARIS_TARGET_KG; // kg CO2e per day Paris Agreement target
+const BENCHMARK_LINE = APP_CONSTANTS.BENCHMARK_GLOBAL_DAILY_AVG_KG;
+const PARIS_TARGET = APP_CONSTANTS.BENCHMARK_PARIS_TARGET_KG;
 
 const CATEGORY_COLORS: Record<string, string> = { ...APP_CONSTANTS.CATEGORY_COLORS };
 
-function EmissionChart({
+const EmissionChart = React.memo(function EmissionChart({
   breakdown,
 }: {
   readonly breakdown: EmissionSummaryEntry[];
 }): React.JSX.Element {
   const chartData = breakdown.map((entry) => ({
     category: entry.category.charAt(0).toUpperCase() + entry.category.slice(1),
-    co2e: Math.round(entry.total_co2e_kg * 100) / 100,
+    co2e: roundCo2e(entry.total_co2e_kg),
     color: CATEGORY_COLORS[entry.category] ?? '#818cf8',
   }));
 
@@ -228,18 +244,17 @@ function EmissionChart({
       </ResponsiveContainer>
     </div>
   );
-}
+});
 
 // ---------------------------------------------------------------------------
 // Trend Chart Component
 // ---------------------------------------------------------------------------
 
-function TrendChart({
+const TrendChart = React.memo(function TrendChart({
   logs,
 }: {
   readonly logs: readonly CarbonCalculationResponse[];
 }): React.JSX.Element {
-  // Aggregate emissions by date
   const dailyMap = new Map<string, number>();
   for (const log of logs) {
     const dateKey = log.results[0]?.date?.slice(0, 10) ?? 'unknown';
@@ -248,8 +263,8 @@ function TrendChart({
   const chartData = Array.from(dailyMap.entries())
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, co2e]) => ({
-      date: date.slice(5), // Show MM-DD only
-      co2e: Math.round(co2e * 100) / 100,
+      date: date.slice(5),
+      co2e: roundCo2e(co2e),
       benchmark: BENCHMARK_LINE,
       target: PARIS_TARGET,
     }));
@@ -289,13 +304,13 @@ function TrendChart({
       </ResponsiveContainer>
     </div>
   );
-}
+});
 
 // ---------------------------------------------------------------------------
 // Benchmark Comparison Component
 // ---------------------------------------------------------------------------
 
-function BenchmarkComparison({
+const BenchmarkComparison = React.memo(function BenchmarkComparison({
   totalCo2eKg,
   periodDays,
 }: {
@@ -330,7 +345,7 @@ function BenchmarkComparison({
       </div>
     </div>
   );
-}
+});
 
 // ---------------------------------------------------------------------------
 // Main Dashboard
@@ -346,12 +361,12 @@ export function CarbonDashboard({ userId }: CarbonDashboardProps): React.JSX.Ele
   // Fetch history on mount so page refresh doesn't lose data
   useEffect(() => {
     let cancelled = false;
-    apiClient.getFootprintHistory(userId, 30).then((result) => {
+    apiClient.getFootprintHistory(userId, APP_CONSTANTS.DEFAULT_HISTORY_PERIOD_DAYS).then((result) => {
       if (!cancelled && result.success) {
-        setLogs(result.data.logs as CarbonCalculationResponse[]);
+        setLogs([...result.data.logs]);
       }
-    }).catch(() => {
-      // Silently ignore — user can still log new activities
+    }).catch((err: unknown) => {
+      console.error('Failed to load footprint history:', err);
     }).finally(() => {
       if (!cancelled) setHistoryLoading(false);
     });
@@ -360,8 +375,6 @@ export function CarbonDashboard({ userId }: CarbonDashboardProps): React.JSX.Ele
 
   const handleLogSuccess = useCallback((result: CarbonCalculationResponse): void => {
     setLogs((prev) => [result, ...prev]);
-
-    // Show success toast notification
     addToast(
       `Activity logged successfully! ${result.total_co2e_kg} kg CO₂e`,
       'success',
@@ -372,17 +385,17 @@ export function CarbonDashboard({ userId }: CarbonDashboardProps): React.JSX.Ele
   useEffect(() => {
     if (logs.length === 1 && !autoInsightTriggeredRef.current) {
       autoInsightTriggeredRef.current = true;
-      // Small delay to let the InsightCoach component mount with data
       const timer = setTimeout(() => {
         insightCoachRef.current?.requestInsights();
-      }, 500);
+      }, APP_CONSTANTS.AUTO_INSIGHT_DELAY_MS);
       return () => clearTimeout(timer);
     }
   }, [logs.length]);
 
-  const breakdown = buildEmissionBreakdown(logs);
-  const totalCo2e = computeTotalCo2e(logs);
-  const periodDays = Math.max(1, logs.length);
+  // Memoized derived data to avoid recomputation on every render
+  const breakdown = useMemo(() => buildEmissionBreakdown(logs), [logs]);
+  const totalCo2e = useMemo(() => computeTotalCo2e(logs), [logs]);
+  const periodDays = useMemo(() => computePeriodDays(logs), [logs]);
 
   return (
     <section id="main-content" className="carbon-dashboard" aria-label="Carbon Footprint Dashboard">
@@ -498,7 +511,6 @@ export function CarbonDashboard({ userId }: CarbonDashboardProps): React.JSX.Ele
           {breakdown.length > 0 && (
             <div className="dashboard-section goals-section">
               <EmissionGoals
-                userId={userId}
                 totalCo2eKg={totalCo2e}
                 periodDays={periodDays}
               />

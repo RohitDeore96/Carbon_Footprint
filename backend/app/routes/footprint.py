@@ -1,12 +1,13 @@
 """Carbon footprint logging route with Pydantic validation and Firestore persistence."""
 
+import asyncio
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.constants import AppConstants
 from app.middleware.auth import get_current_user
-from app.schemas import CarbonCalculationRequest, CarbonCalculationResponse
+from app.schemas import CarbonCalculationRequest, CarbonCalculationResponse, EmissionResult
 from app.services.firebase_service import FirebaseService
 from app.utils.entry_processor import process_all_entries, sum_total_emissions
 
@@ -14,17 +15,23 @@ logger = logging.getLogger(__name__)
 
 router: APIRouter = APIRouter(prefix="/api/v1/footprint", tags=["footprint"])
 
+# Module-level singleton — created once per process, not per request
+_firebase_service_instance: FirebaseService | None = None
+
 
 def _get_firebase_service() -> FirebaseService:
-    """Obtain a FirebaseService instance for database operations.
+    """Return a cached FirebaseService singleton for database operations.
 
-    Returns:
-        A configured FirebaseService instance.
+    Uses module-level caching to avoid creating a new service instance
+    (and Firestore client) on every request.
     """
-    return FirebaseService()
+    global _firebase_service_instance
+    if _firebase_service_instance is None:
+        _firebase_service_instance = FirebaseService()
+    return _firebase_service_instance
 
 
-def _serialize_results(results: list) -> list[dict[str, object]]:
+def _serialize_results(results: list[EmissionResult]) -> list[dict[str, object]]:
     """Convert a list of EmissionResult models to serializable dictionaries.
 
     Args:
@@ -53,14 +60,12 @@ def _verify_user_access(authenticated_uid: str, requested_user_id: str) -> str:
         HTTPException: 403 if authenticated user tries to access another user's data.
     """
     if authenticated_uid != AppConstants.ANONYMOUS_USER_ID:
-        # Authenticated user — enforce they can only access their own data
         if authenticated_uid != requested_user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access denied: authenticated users can only access their own data",
             )
         return authenticated_uid
-    # Anonymous user — use the requested user_id (no token to verify)
     return requested_user_id
 
 
@@ -88,7 +93,6 @@ async def log_footprint(
     Raises:
         HTTPException: 500 if the database write fails.
     """
-    # Use authenticated UID if available, otherwise use the payload's user_id
     effective_user_id = (
         authenticated_uid
         if authenticated_uid != AppConstants.ANONYMOUS_USER_ID
@@ -96,8 +100,8 @@ async def log_footprint(
     )
     results = process_all_entries(payload.entries)
     total_co2e_kg: float = sum_total_emissions(results)
-    document_id: str = _write_to_firestore(
-        effective_user_id, payload, total_co2e_kg, results
+    document_id: str = await asyncio.to_thread(
+        _write_to_firestore, effective_user_id, payload, total_co2e_kg, results
     )
     return _build_response(effective_user_id, total_co2e_kg, results, document_id)
 
@@ -133,7 +137,7 @@ async def get_footprint_history(
     effective_user_id = _verify_user_access(authenticated_uid, user_id)
     try:
         service: FirebaseService = _get_firebase_service()
-        logs = service.get_user_logs(effective_user_id, period_days)
+        logs = await asyncio.to_thread(service.get_user_logs, effective_user_id, period_days)
         return {
             "user_id": effective_user_id,
             "logs": logs,
@@ -144,7 +148,10 @@ async def get_footprint_history(
         raise
     except Exception as exc:
         logger.error("Database read failed for user %s: %s", effective_user_id, exc)
-        raise HTTPException(status_code=500, detail="Internal server error") from exc
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
+        ) from exc
 
 
 @router.get(
@@ -178,7 +185,7 @@ async def get_footprint_summary(
     effective_user_id = _verify_user_access(authenticated_uid, user_id)
     try:
         service: FirebaseService = _get_firebase_service()
-        logs = service.get_user_logs(effective_user_id, period_days)
+        logs = await asyncio.to_thread(service.get_user_logs, effective_user_id, period_days)
         total_co2e = round(sum(log.get("total_co2e_kg", 0) for log in logs), 4)
         category_map: dict[str, float] = {}
         for log in logs:
@@ -200,14 +207,17 @@ async def get_footprint_summary(
         raise
     except Exception as exc:
         logger.error("Database read failed for user %s: %s", effective_user_id, exc)
-        raise HTTPException(status_code=500, detail="Internal server error") from exc
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
+        ) from exc
 
 
 def _write_to_firestore(
     effective_user_id: str,
     payload: CarbonCalculationRequest,
     total_co2e_kg: float,
-    results: list,
+    results: list[EmissionResult],
 ) -> str:
     """Delegate the Firestore write and handle database errors.
 
@@ -233,13 +243,16 @@ def _write_to_firestore(
         )
     except Exception as exc:
         logger.error("Database write failed: %s", exc)
-        raise HTTPException(status_code=500, detail="Internal server error") from exc
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
+        ) from exc
 
 
 def _build_response(
     effective_user_id: str,
     total_co2e_kg: float,
-    results: list,
+    results: list[EmissionResult],
     document_id: str,
 ) -> CarbonCalculationResponse:
     """Assemble the API response model from computed data.

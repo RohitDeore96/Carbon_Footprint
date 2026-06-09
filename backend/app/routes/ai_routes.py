@@ -20,14 +20,23 @@ logger = logging.getLogger(__name__)
 
 router: APIRouter = APIRouter(prefix="/api/v1/ai", tags=["ai"])
 
+# Module-level singleton — created once per process, not per request
+_vertex_service_instance: VertexAiService | None = None
+
 
 def _get_vertex_service() -> VertexAiService:
-    """Obtain a VertexAiService instance for AI operations.
+    """Return a cached VertexAiService singleton for AI operations.
+
+    Uses module-level caching to avoid creating a new GenAI client
+    on every request.
 
     Returns:
         A configured VertexAiService instance.
     """
-    return VertexAiService()
+    global _vertex_service_instance
+    if _vertex_service_instance is None:
+        _vertex_service_instance = VertexAiService()
+    return _vertex_service_instance
 
 
 def _build_user_data_payload(payload: InsightsRequest) -> dict[str, Any]:

@@ -4,7 +4,7 @@ Provides a strictly typed interface for writing calculated emission data
 to the Firestore ``carbon_logs`` collection via ``firebase-admin``.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import firebase_admin
@@ -122,8 +122,6 @@ class FirebaseService:
         Returns:
             A list of carbon log document dictionaries, newest first.
         """
-        from datetime import datetime, timedelta
-
         cutoff: str = (
             datetime.now(tz=timezone.utc) - timedelta(days=period_days)
         ).isoformat()
@@ -132,7 +130,7 @@ class FirebaseService:
             .where("user_id", "==", user_id)
             .where("created_at", ">=", cutoff)
             .order_by("created_at", direction=firestore.Query.DESCENDING)
-            .limit(100)
+            .limit(AppConstants.FIREBASE_QUERY_LIMIT)
             .stream()
         )
         return [doc.to_dict() for doc in docs]

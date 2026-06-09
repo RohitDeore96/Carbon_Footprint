@@ -4,6 +4,8 @@ Dispatches each entry to the appropriate single-responsibility calculator based 
 its category, producing a flat list of emission results.
 """
 
+from collections.abc import Callable
+
 from app.schemas import ActivityEntry, EmissionResult
 from app.utils.carbon_calculator import (
     calculate_consumption_emission,
@@ -81,7 +83,7 @@ def _process_consumption_entry(entry: ActivityEntry) -> float:
     )
 
 
-_PROCESSOR_DISPATCH: dict[str, object] = {
+_PROCESSOR_DISPATCH: dict[str, Callable[[ActivityEntry], float]] = {
     "transport": _process_transport_entry,
     "energy": _process_energy_entry,
     "food": _process_food_entry,
@@ -100,7 +102,7 @@ def compute_entry_emission(entry: ActivityEntry) -> EmissionResult:
     """
     category_key: str = entry.category.value
     processor = _PROCESSOR_DISPATCH.get(category_key)
-    co2e_kg: float = processor(entry) if callable(processor) else 0.0
+    co2e_kg: float = processor(entry) if processor is not None else 0.0
     return _build_emission_result(entry, co2e_kg)
 
 
