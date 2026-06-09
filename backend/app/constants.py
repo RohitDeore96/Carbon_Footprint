@@ -50,15 +50,9 @@ class AppConstants:
         "form-action 'self'"
     )
 
-    @classmethod
-    @property
-    def CSP_POLICY(cls) -> str:  # type: ignore[override]
-        """Return the appropriate CSP policy based on the environment."""
-        return (
-            cls.CSP_POLICY_PRODUCTION
-            if cls._IS_PRODUCTION
-            else cls.CSP_POLICY_DEVELOPMENT
-        )
+    CSP_POLICY: Final[str] = (
+        CSP_POLICY_PRODUCTION if _IS_PRODUCTION else CSP_POLICY_DEVELOPMENT
+    )
 
     # CORS origins loaded from environment for production safety
     CORS_ALLOWED_ORIGINS: Final[list[str]] = [

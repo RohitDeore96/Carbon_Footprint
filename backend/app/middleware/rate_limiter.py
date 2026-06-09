@@ -8,7 +8,8 @@ O(1) eviction of oldest entries instead of O(n log n) sorting.
 import threading
 import time
 from collections import OrderedDict
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -59,7 +60,7 @@ class RateLimiterMiddleware(BaseHTTPMiddleware):
     eviction of the oldest entries once ``_MAX_CLIENT_ENTRIES`` is reached.
     """
 
-    def __init__(self, app: object) -> None:
+    def __init__(self, app: Callable[..., Any]) -> None:
         """Initialize the rate limiter with an empty tracking dictionary."""
         super().__init__(app)
         self._clients: OrderedDict[str, dict[str, float | int]] = OrderedDict()
@@ -92,7 +93,9 @@ class RateLimiterMiddleware(BaseHTTPMiddleware):
             self._clients.popitem(last=False)  # Remove oldest (FIFO)
 
     async def dispatch(
-        self, request: Request, call_next: Callable[[Request], Response]
+        self,
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
         """Check rate limits and either forward the request or return 429."""
         client_ip: str = _get_client_ip(request)

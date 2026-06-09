@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from google.cloud.firestore_v1.client import Client as FirestoreClient
+from google.cloud.firestore_v1.document import DocumentSnapshot
 
 from app.services.firebase_service import _get_firestore_client
 
@@ -54,7 +55,7 @@ def get_cached_insight(
     try:
         key = _compute_cache_key(user_data)
         db = _get_db()
-        doc = db.collection(CACHE_COLLECTION).document(key).get()
+        doc: DocumentSnapshot = db.collection(CACHE_COLLECTION).document(key).get()  # type: ignore[assignment]
 
         if not doc.exists:
             return None

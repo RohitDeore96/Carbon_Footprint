@@ -39,11 +39,13 @@ def _get_vertex_service() -> VertexAiService:
     return _vertex_service_instance
 
 
-def _build_user_data_payload(payload: InsightsRequest) -> dict[str, Any]:
+def _build_user_data_payload(
+    payload: InsightsRequest | ChatRequest,
+) -> dict[str, Any]:
     """Convert the validated request payload into a dictionary for prompt generation.
 
     Args:
-        payload: The validated InsightsRequest Pydantic model.
+        payload: The validated InsightsRequest or ChatRequest Pydantic model.
 
     Returns:
         A plain dictionary containing the user's emission summary data.

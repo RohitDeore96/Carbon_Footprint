@@ -1,6 +1,6 @@
 """OWASP-compliant security headers middleware for HTTP response hardening."""
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -45,7 +45,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Starlette middleware that injects OWASP-recommended security headers into every response."""
 
     async def dispatch(
-        self, request: Request, call_next: Callable[[Request], Response]
+        self,
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
         """Process request and inject security headers into the response."""
         response: Response = await call_next(request)

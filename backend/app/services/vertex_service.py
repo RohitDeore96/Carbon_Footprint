@@ -360,14 +360,14 @@ class VertexAiService:
             logger.info(
                 "Trying fallback model: %s", AppConstants.VERTEX_AI_FALLBACK_MODEL
             )
-            prompt: str = _format_prompt(user_data)
+            fallback_prompt: str = _format_prompt(user_data)
             response = self._client.models.generate_content(
                 model=AppConstants.VERTEX_AI_FALLBACK_MODEL,
-                contents=prompt,
+                contents=fallback_prompt,
                 config=self._config,
             )
-            response_text: str = _extract_response_text(response)
-            result = _parse_model_response(response_text)
+            fallback_response_text: str = _extract_response_text(response)
+            result = _parse_model_response(fallback_response_text)
             set_cached_insight(user_data, result)
             return result
         except Exception as fallback_exc:
