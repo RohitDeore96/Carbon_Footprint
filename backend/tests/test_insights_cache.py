@@ -53,8 +53,8 @@ class TestGetCachedInsight:
     """Unit tests for get_cached_insight."""
 
     @pytest.mark.unit
-    @patch("app.services.insights_cache.firestore")
-    def test_cache_miss_returns_none(self, mock_firestore_module: MagicMock) -> None:
+    @patch("app.services.insights_cache._get_db")
+    def test_cache_miss_returns_none(self, mock_get_db: MagicMock) -> None:
         """Verify None is returned when no cached document exists."""
         mock_db = MagicMock()
         mock_doc = MagicMock()
@@ -62,14 +62,14 @@ class TestGetCachedInsight:
         mock_db.collection.return_value.document.return_value.get.return_value = (
             mock_doc
         )
-        mock_firestore_module.Client.return_value = mock_db
+        mock_get_db.return_value = mock_db
 
         result = get_cached_insight({"total_co2e_kg": 10.0, "period_days": 7})
         assert result is None
 
     @pytest.mark.unit
-    @patch("app.services.insights_cache.firestore")
-    def test_cache_hit_returns_insight(self, mock_firestore_module: MagicMock) -> None:
+    @patch("app.services.insights_cache._get_db")
+    def test_cache_hit_returns_insight(self, mock_get_db: MagicMock) -> None:
         """Verify cached insight is returned when found and not expired."""
         cached_time = datetime.now(tz=timezone.utc) - timedelta(hours=1)
         mock_db = MagicMock()
@@ -82,14 +82,14 @@ class TestGetCachedInsight:
         mock_db.collection.return_value.document.return_value.get.return_value = (
             mock_doc
         )
-        mock_firestore_module.Client.return_value = mock_db
+        mock_get_db.return_value = mock_db
 
         result = get_cached_insight({"total_co2e_kg": 10.0, "period_days": 7})
         assert result == {"insight": "test insight"}
 
     @pytest.mark.unit
-    @patch("app.services.insights_cache.firestore")
-    def test_expired_cache_returns_none(self, mock_firestore_module: MagicMock) -> None:
+    @patch("app.services.insights_cache._get_db")
+    def test_expired_cache_returns_none(self, mock_get_db: MagicMock) -> None:
         """Verify None is returned when cache entry has expired."""
         expired_time = datetime.now(tz=timezone.utc) - timedelta(hours=48)
         mock_db = MagicMock()
@@ -102,7 +102,7 @@ class TestGetCachedInsight:
         mock_db.collection.return_value.document.return_value.get.return_value = (
             mock_doc
         )
-        mock_firestore_module.Client.return_value = mock_db
+        mock_get_db.return_value = mock_db
 
         result = get_cached_insight(
             {"total_co2e_kg": 10.0, "period_days": 7}, ttl_hours=24
@@ -110,9 +110,9 @@ class TestGetCachedInsight:
         assert result is None
 
     @pytest.mark.unit
-    @patch("app.services.insights_cache.firestore")
+    @patch("app.services.insights_cache._get_db")
     def test_cache_with_none_data_returns_none(
-        self, mock_firestore_module: MagicMock
+        self, mock_get_db: MagicMock
     ) -> None:
         """Verify None is returned when document to_dict returns None."""
         mock_db = MagicMock()
@@ -122,15 +122,15 @@ class TestGetCachedInsight:
         mock_db.collection.return_value.document.return_value.get.return_value = (
             mock_doc
         )
-        mock_firestore_module.Client.return_value = mock_db
+        mock_get_db.return_value = mock_db
 
         result = get_cached_insight({"total_co2e_kg": 10.0, "period_days": 7})
         assert result is None
 
     @pytest.mark.unit
-    @patch("app.services.insights_cache.firestore")
+    @patch("app.services.insights_cache._get_db")
     def test_cache_without_cached_at_returns_none(
-        self, mock_firestore_module: MagicMock
+        self, mock_get_db: MagicMock
     ) -> None:
         """Verify None is returned when cached_at field is missing."""
         mock_db = MagicMock()
@@ -140,18 +140,18 @@ class TestGetCachedInsight:
         mock_db.collection.return_value.document.return_value.get.return_value = (
             mock_doc
         )
-        mock_firestore_module.Client.return_value = mock_db
+        mock_get_db.return_value = mock_db
 
         result = get_cached_insight({"total_co2e_kg": 10.0, "period_days": 7})
         assert result is None
 
     @pytest.mark.unit
-    @patch("app.services.insights_cache.firestore")
+    @patch("app.services.insights_cache._get_db")
     def test_cache_read_exception_returns_none(
-        self, mock_firestore_module: MagicMock
+        self, mock_get_db: MagicMock
     ) -> None:
         """Verify None is returned when Firestore read throws an exception."""
-        mock_firestore_module.Client.side_effect = Exception("Firestore unavailable")
+        mock_get_db.side_effect = Exception("Firestore unavailable")
 
         result = get_cached_insight({"total_co2e_kg": 10.0, "period_days": 7})
         assert result is None
@@ -161,13 +161,13 @@ class TestSetCachedInsight:
     """Unit tests for set_cached_insight."""
 
     @pytest.mark.unit
-    @patch("app.services.insights_cache.firestore")
+    @patch("app.services.insights_cache._get_db")
     def test_set_cached_insight_stores_document(
-        self, mock_firestore_module: MagicMock
+        self, mock_get_db: MagicMock
     ) -> None:
         """Verify set_cached_insight writes to the correct collection and document."""
         mock_db = MagicMock()
-        mock_firestore_module.Client.return_value = mock_db
+        mock_get_db.return_value = mock_db
 
         user_data = {"total_co2e_kg": 10.0, "period_days": 7}
         insight = {"insight": "reduce driving", "actionable_steps": ["bike more"]}
@@ -179,12 +179,12 @@ class TestSetCachedInsight:
         mock_db.collection.return_value.document.return_value.set.assert_called_once()
 
     @pytest.mark.unit
-    @patch("app.services.insights_cache.firestore")
+    @patch("app.services.insights_cache._get_db")
     def test_set_cached_insight_exception_does_not_raise(
-        self, mock_firestore_module: MagicMock
+        self, mock_get_db: MagicMock
     ) -> None:
         """Verify set_cached_insight swallows exceptions gracefully."""
-        mock_firestore_module.Client.side_effect = Exception("Write failed")
+        mock_get_db.side_effect = Exception("Write failed")
 
         user_data = {"total_co2e_kg": 10.0, "period_days": 7}
         insight = {"insight": "test"}
@@ -193,13 +193,13 @@ class TestSetCachedInsight:
         set_cached_insight(user_data, insight)
 
     @pytest.mark.unit
-    @patch("app.services.insights_cache.firestore")
+    @patch("app.services.insights_cache._get_db")
     def test_set_cached_insight_document_contains_required_fields(
-        self, mock_firestore_module: MagicMock
+        self, mock_get_db: MagicMock
     ) -> None:
         """Verify the cached document contains cached_at, insight, and cache_key_prefix."""
         mock_db = MagicMock()
-        mock_firestore_module.Client.return_value = mock_db
+        mock_get_db.return_value = mock_db
 
         user_data = {"total_co2e_kg": 10.0, "period_days": 7}
         insight = {"insight": "test insight"}
