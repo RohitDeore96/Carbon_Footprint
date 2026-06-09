@@ -10,7 +10,6 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from firebase_admin import firestore
 from google.cloud.firestore_v1.client import Client as FirestoreClient
 
 from app.services.firebase_service import _get_firestore_client
