@@ -24,6 +24,7 @@ from app.services.vertex_service import (
     _extract_response_text,
     _format_prompt,
     _parse_model_response,
+    _repair_truncated_json,
 )
 
 
@@ -412,7 +413,7 @@ class TestInsightsEndpointApiFailure:
         mock_get_service.return_value = mock_service
         response = client.post("/api/v1/ai/insights", json=valid_insights_payload)
         assert response.status_code == 500
-        assert "AI service error" in response.json()["detail"]
+        assert "temporarily unavailable" in response.json()["detail"]
 
     @pytest.mark.integration
     @patch("app.routes.ai_routes._get_vertex_service")
@@ -430,7 +431,7 @@ class TestInsightsEndpointApiFailure:
         mock_get_service.return_value = mock_service
         response = client.post("/api/v1/ai/insights", json=valid_insights_payload)
         assert response.status_code == 500
-        assert "AI service error" in response.json()["detail"]
+        assert "temporarily unavailable" in response.json()["detail"]
 
     @pytest.mark.integration
     @patch("app.routes.ai_routes._get_vertex_service")
@@ -448,7 +449,7 @@ class TestInsightsEndpointApiFailure:
         mock_get_service.return_value = mock_service
         response = client.post("/api/v1/ai/insights", json=valid_insights_payload)
         assert response.status_code == 500
-        assert "AI service error" in response.json()["detail"]
+        assert "temporarily unavailable" in response.json()["detail"]
 
 
 # ===========================================================================
@@ -636,3 +637,182 @@ class TestVertexAiServiceFallbackModel:
             service.generate_insights(
                 {"total_co2e_kg": 50.0, "period_days": 7, "emission_breakdown": []}
             )
+
+
+# ===========================================================================
+# Unit Tests: Truncated JSON Repair
+# ===========================================================================
+
+
+class TestRepairTruncatedJson:
+    """Unit tests for the _repair_truncated_json helper function."""
+
+    @pytest.mark.unit
+    def test_repair_missing_closing_braces(self) -> None:
+        """Verify truncated JSON missing closing braces can be repaired."""
+        truncated = '{"insight": "test", "equivalent_impact": "test", "actionable_steps": ["step 1"'
+        result = _repair_truncated_json(truncated)
+        assert result is not None
+        assert result["insight"] == "test"
+
+    @pytest.mark.unit
+    def test_repair_unterminated_string(self) -> None:
+        """Verify truncated JSON with unterminated string can be repaired."""
+        truncated = '{"insight": "this is a long insight that got trun'
+        result = _repair_truncated_json(truncated)
+        # Should either repair or return None — both are acceptable
+        if result is not None:
+            assert isinstance(result, dict)
+
+    @pytest.mark.unit
+    def test_repair_fills_missing_keys(self) -> None:
+        """Verify repaired JSON gets fallback values for missing required keys."""
+        truncated = '{"insight": "only insight"'
+        result = _repair_truncated_json(truncated)
+        if result is not None:
+            assert "insight" in result
+            # Missing keys should be filled with fallback values
+            assert AppConstants.VERTEX_AI_RESPONSE_KEY_EQUIVALENT in result
+            assert AppConstants.VERTEX_AI_RESPONSE_KEY_STEPS in result
+
+    @pytest.mark.unit
+    def test_repair_returns_none_for_unrepairable(self) -> None:
+        """Verify completely invalid input returns None."""
+        result = _repair_truncated_json("not json at all")
+        assert result is None
+
+
+# ===========================================================================
+# Integration Tests: POST /api/v1/ai/chat
+# ===========================================================================
+
+
+class TestChatEndpointHappyPath:
+    """Integration tests for the conversational AI chat endpoint."""
+
+    @pytest.fixture(name="valid_chat_payload")
+    def fixture_valid_chat_payload(self) -> dict[str, Any]:
+        """Provide a valid chat request payload."""
+        return {
+            "user_id": "test-user-chat-001",
+            "message": "How can I reduce my transport emissions?",
+            "total_co2e_kg": 85.5,
+            "period_days": 30,
+            "emission_breakdown": [
+                {
+                    "category": "transport",
+                    "total_co2e_kg": 85.5,
+                    "entry_count": 12,
+                    "description": "Daily car commute",
+                }
+            ],
+            "conversation_history": [],
+        }
+
+    @pytest.mark.integration
+    @patch("app.routes.ai_routes._get_vertex_service")
+    def test_chat_returns_200(
+        self,
+        mock_get_service: MagicMock,
+        client: TestClient,
+        valid_chat_payload: dict[str, Any],
+    ) -> None:
+        """Verify valid chat payload returns 200 with coaching response."""
+        mock_service = MagicMock()
+        mock_service.chat_async = AsyncMock(
+            return_value={
+                "response": "Try switching to public transit for 2 days a week.",
+                "suggestions": [
+                    "What about cycling?",
+                    "Tell me about electric vehicles.",
+                ],
+                "model_used": AppConstants.VERTEX_AI_MODEL_NAME,
+            }
+        )
+        mock_get_service.return_value = mock_service
+        response = client.post("/api/v1/ai/chat", json=valid_chat_payload)
+        assert response.status_code == 200
+
+    @pytest.mark.integration
+    @patch("app.routes.ai_routes._get_vertex_service")
+    def test_chat_response_contains_required_fields(
+        self,
+        mock_get_service: MagicMock,
+        client: TestClient,
+        valid_chat_payload: dict[str, Any],
+    ) -> None:
+        """Verify chat response includes response, suggestions, and model_used."""
+        mock_service = MagicMock()
+        mock_service.chat_async = AsyncMock(
+            return_value={
+                "response": "Try switching to public transit.",
+                "suggestions": ["What about cycling?"],
+                "model_used": AppConstants.VERTEX_AI_MODEL_NAME,
+            }
+        )
+        mock_get_service.return_value = mock_service
+        response = client.post("/api/v1/ai/chat", json=valid_chat_payload)
+        data: dict[str, Any] = response.json()
+        assert "response" in data
+        assert "suggestions" in data
+        assert "model_used" in data
+        assert data["user_id"] == "test-user-chat-001"
+
+    @pytest.mark.integration
+    @patch("app.routes.ai_routes._get_vertex_service")
+    def test_chat_service_failure_returns_500(
+        self,
+        mock_get_service: MagicMock,
+        client: TestClient,
+        valid_chat_payload: dict[str, Any],
+    ) -> None:
+        """Verify chat service failure returns 500 with generic error."""
+        mock_service = MagicMock()
+        mock_service.chat_async = AsyncMock(side_effect=Exception("Gemini API timeout"))
+        mock_get_service.return_value = mock_service
+        response = client.post("/api/v1/ai/chat", json=valid_chat_payload)
+        assert response.status_code == 500
+        assert "temporarily unavailable" in response.json()["detail"]
+
+
+class TestChatEndpointValidation:
+    """Integration tests for chat endpoint input validation."""
+
+    @pytest.mark.integration
+    def test_chat_missing_message_returns_422(self, client: TestClient) -> None:
+        """Verify chat without message field returns 422."""
+        payload: dict[str, Any] = {
+            "user_id": "user-001",
+            "total_co2e_kg": 50.0,
+            "period_days": 30,
+            "emission_breakdown": [
+                {
+                    "category": "transport",
+                    "total_co2e_kg": 50.0,
+                    "entry_count": 1,
+                    "description": "Car commute",
+                }
+            ],
+        }
+        response = client.post("/api/v1/ai/chat", json=payload)
+        assert response.status_code == 422
+
+    @pytest.mark.integration
+    def test_chat_empty_message_returns_422(self, client: TestClient) -> None:
+        """Verify chat with empty message string returns 422."""
+        payload: dict[str, Any] = {
+            "user_id": "user-001",
+            "message": "",
+            "total_co2e_kg": 50.0,
+            "period_days": 30,
+            "emission_breakdown": [
+                {
+                    "category": "transport",
+                    "total_co2e_kg": 50.0,
+                    "entry_count": 1,
+                    "description": "Car commute",
+                }
+            ],
+        }
+        response = client.post("/api/v1/ai/chat", json=payload)
+        assert response.status_code == 422

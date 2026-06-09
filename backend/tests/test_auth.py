@@ -75,4 +75,4 @@ class TestGetCurrentUserInvalidToken:
             "/test-auth", headers={"Authorization": "Bearer expired-token"}
         )
         assert response.status_code == 401
-        assert "Invalid authentication token" in response.json()["detail"]
+        assert "Invalid or expired authentication token" in response.json()["detail"]

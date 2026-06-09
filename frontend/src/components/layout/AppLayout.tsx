@@ -29,8 +29,9 @@ function AppFooter(): React.JSX.Element {
 export function AppLayout({ children }: AppLayoutProps): React.JSX.Element {
   return (
     <div className="app-container">
+      <a className="skip-link" href="#app-main">Skip to content</a>
       <AppHeader />
-      <main role="main" id="app-main" className="app-main">
+      <main role="main" id="app-main" className="app-main" tabIndex={-1}>
         {children}
       </main>
       <AppFooter />

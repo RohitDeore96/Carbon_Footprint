@@ -1,11 +1,16 @@
 """Carbon footprint logging route with Pydantic validation and Firestore persistence."""
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from app.constants import AppConstants
 from app.middleware.auth import get_current_user
 from app.schemas import CarbonCalculationRequest, CarbonCalculationResponse
 from app.services.firebase_service import FirebaseService
 from app.utils.entry_processor import process_all_entries, sum_total_emissions
+
+logger = logging.getLogger(__name__)
 
 router: APIRouter = APIRouter(prefix="/api/v1/footprint", tags=["footprint"])
 
@@ -29,6 +34,34 @@ def _serialize_results(results: list) -> list[dict[str, object]]:
         List of plain dictionaries suitable for Firestore storage.
     """
     return [result.model_dump() for result in results]
+
+
+def _verify_user_access(authenticated_uid: str, requested_user_id: str) -> str:
+    """Verify the authenticated user has access to the requested user's data.
+
+    Authenticated users can only access their own data.
+    Anonymous users can access any user_id (no token to verify against).
+
+    Args:
+        authenticated_uid: UID from Firebase ID token, or AppConstants.ANONYMOUS_USER_ID.
+        requested_user_id: The user_id from the URL path parameter.
+
+    Returns:
+        The effective user_id to use for the query.
+
+    Raises:
+        HTTPException: 403 if authenticated user tries to access another user's data.
+    """
+    if authenticated_uid != AppConstants.ANONYMOUS_USER_ID:
+        # Authenticated user — enforce they can only access their own data
+        if authenticated_uid != requested_user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: authenticated users can only access their own data",
+            )
+        return authenticated_uid
+    # Anonymous user — use the requested user_id (no token to verify)
+    return requested_user_id
 
 
 @router.post(
@@ -57,7 +90,9 @@ async def log_footprint(
     """
     # Use authenticated UID if available, otherwise use the payload's user_id
     effective_user_id = (
-        authenticated_uid if authenticated_uid != "anonymous" else payload.user_id
+        authenticated_uid
+        if authenticated_uid != AppConstants.ANONYMOUS_USER_ID
+        else payload.user_id
     )
     results = process_all_entries(payload.entries)
     total_co2e_kg: float = sum_total_emissions(results)
@@ -80,8 +115,8 @@ async def get_footprint_history(
 ) -> dict:
     """Retrieve a user's carbon footprint history from Firestore.
 
-    If a valid Firebase ID token is provided, ensures the authenticated
-    user can only access their own data.
+    Authenticated users can only access their own data. Anonymous requests
+    use the user_id from the URL path parameter.
 
     Args:
         user_id: The unique identifier of the user.
@@ -92,11 +127,10 @@ async def get_footprint_history(
         A dictionary containing the user's carbon log entries and count.
 
     Raises:
+        HTTPException: 403 if user tries to access another user's data.
         HTTPException: 500 if the database read fails.
     """
-    effective_user_id = (
-        authenticated_uid if authenticated_uid != "anonymous" else user_id
-    )
+    effective_user_id = _verify_user_access(authenticated_uid, user_id)
     try:
         service: FirebaseService = _get_firebase_service()
         logs = service.get_user_logs(effective_user_id, period_days)
@@ -106,10 +140,11 @@ async def get_footprint_history(
             "count": len(logs),
             "period_days": period_days,
         }
+    except HTTPException:
+        raise
     except Exception as exc:
-        raise HTTPException(
-            status_code=500, detail=f"Database read failed: {exc}"
-        ) from exc
+        logger.error("Database read failed for user %s: %s", effective_user_id, exc)
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
 
 
 @router.get(
@@ -125,8 +160,8 @@ async def get_footprint_summary(
 ) -> dict:
     """Retrieve an aggregated carbon footprint summary for a user.
 
-    If a valid Firebase ID token is provided, ensures the authenticated
-    user can only access their own data.
+    Authenticated users can only access their own data. Anonymous requests
+    use the user_id from the URL path parameter.
 
     Args:
         user_id: The unique identifier of the user.
@@ -137,11 +172,10 @@ async def get_footprint_summary(
         A dictionary containing the total CO2e, entry count, and category breakdown.
 
     Raises:
+        HTTPException: 403 if user tries to access another user's data.
         HTTPException: 500 if the database read fails.
     """
-    effective_user_id = (
-        authenticated_uid if authenticated_uid != "anonymous" else user_id
-    )
+    effective_user_id = _verify_user_access(authenticated_uid, user_id)
     try:
         service: FirebaseService = _get_firebase_service()
         logs = service.get_user_logs(effective_user_id, period_days)
@@ -162,10 +196,11 @@ async def get_footprint_summary(
             "entry_count": len(logs),
             "category_breakdown": breakdown,
         }
+    except HTTPException:
+        raise
     except Exception as exc:
-        raise HTTPException(
-            status_code=500, detail=f"Database read failed: {exc}"
-        ) from exc
+        logger.error("Database read failed for user %s: %s", effective_user_id, exc)
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
 
 
 def _write_to_firestore(
@@ -197,9 +232,8 @@ def _write_to_firestore(
             payload.calculation_date,
         )
     except Exception as exc:
-        raise HTTPException(
-            status_code=500, detail=f"Database write failed: {exc}"
-        ) from exc
+        logger.error("Database write failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
 
 
 def _build_response(

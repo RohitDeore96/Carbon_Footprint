@@ -99,7 +99,6 @@ export function ToastProvider({ children }: { readonly children: React.ReactNode
         className="toast-container"
         role="region"
         aria-label="Notifications"
-        aria-live="polite"
       >
         {toasts.map((toast) => (
           <ToastItem key={toast.id} toast={toast} onDismiss={dismissToast} />

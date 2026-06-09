@@ -1,5 +1,6 @@
 """AI insights route for generating sustainability recommendations via Vertex AI."""
 
+import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -14,6 +15,8 @@ from app.schemas.ai_schemas import (
     InsightsResponse,
 )
 from app.services.vertex_service import VertexAiService
+
+logger = logging.getLogger(__name__)
 
 router: APIRouter = APIRouter(prefix="/api/v1/ai", tags=["ai"])
 
@@ -71,15 +74,19 @@ def _build_insights_response(
 def _build_error_response(exc: Exception) -> HTTPException:
     """Map service-layer exceptions to a clean HTTP 500 error response.
 
+    Logs the full exception server-side but returns a generic message
+    to the client to avoid leaking internal details.
+
     Args:
         exc: The exception raised during AI service execution.
 
     Returns:
-        An HTTPException with status 500 and descriptive detail message.
+        An HTTPException with status 500 and a generic detail message.
     """
+    logger.error("AI service call failed: %s", exc)
     return HTTPException(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        detail=f"AI service error: {exc}",
+        detail="AI service temporarily unavailable. Please try again later.",
     )
 
 

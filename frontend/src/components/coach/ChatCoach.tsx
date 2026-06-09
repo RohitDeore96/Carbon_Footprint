@@ -28,7 +28,7 @@ interface ChatMessage {
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function ChatMessageBubble({ message }: { readonly message: ChatMessage }): React.JSX.Element {
+function ChatMessageBubble({ message, onSuggestionClick }: { readonly message: ChatMessage; readonly onSuggestionClick: (suggestion: string) => void }): React.JSX.Element {
   const isUser = message.role === 'user';
   return (
     <div
@@ -44,9 +44,14 @@ function ChatMessageBubble({ message }: { readonly message: ChatMessage }): Reac
         {message.suggestions && message.suggestions.length > 0 && (
           <div className="chat-suggestions" aria-label="Suggested follow-up questions">
             {message.suggestions.map((suggestion, i) => (
-              <span key={`suggestion-${i}`} className="chat-suggestion-chip">
+              <button
+                key={`suggestion-${i}`}
+                type="button"
+                className="chat-suggestion-chip"
+                onClick={() => onSuggestionClick(suggestion)}
+              >
                 {suggestion}
-              </span>
+              </button>
             ))}
           </div>
         )}
@@ -167,7 +172,7 @@ export function ChatCoach({
           </div>
         )}
         {messages.map((msg, i) => (
-          <ChatMessageBubble key={`msg-${i}`} message={msg} />
+          <ChatMessageBubble key={`msg-${i}`} message={msg} onSuggestionClick={handleSuggestionClick} />
         ))}
         {isLoading && (
           <div className="chat-loading" role="status" aria-busy="true">

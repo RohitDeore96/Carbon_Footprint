@@ -604,7 +604,7 @@ class TestFootprintEndpointDatabaseError:
         mock_get_service.return_value = mock_service
         response = client.post("/api/v1/footprint/log", json=valid_transport_payload)
         assert response.status_code == 500
-        assert "Database write failed" in response.json()["detail"]
+        assert "Internal server error" in response.json()["detail"]
 
     @pytest.mark.integration
     @patch("app.routes.footprint._get_firebase_service")
@@ -622,7 +622,7 @@ class TestFootprintEndpointDatabaseError:
         mock_get_service.return_value = mock_service
         response = client.post("/api/v1/footprint/log", json=valid_transport_payload)
         assert response.status_code == 500
-        assert "Database write failed" in response.json()["detail"]
+        assert "Internal server error" in response.json()["detail"]
 
     @pytest.mark.integration
     @patch("app.routes.footprint._get_firebase_service")
@@ -640,7 +640,7 @@ class TestFootprintEndpointDatabaseError:
         mock_get_service.return_value = mock_service
         response = client.post("/api/v1/footprint/log", json=valid_transport_payload)
         assert response.status_code == 500
-        assert "Database write failed" in response.json()["detail"]
+        assert "Internal server error" in response.json()["detail"]
 
 
 # ===========================================================================
@@ -753,7 +753,7 @@ class TestFootprintHistoryEndpoint:
         mock_get_service.return_value = mock_service
         response = client.get("/api/v1/footprint/history/user-001")
         assert response.status_code == 500
-        assert "Database read failed" in response.json()["detail"]
+        assert "Internal server error" in response.json()["detail"]
 
 
 # ===========================================================================
@@ -828,4 +828,4 @@ class TestFootprintSummaryEndpoint:
         mock_get_service.return_value = mock_service
         response = client.get("/api/v1/footprint/summary/user-001")
         assert response.status_code == 500
-        assert "Database read failed" in response.json()["detail"]
+        assert "Internal server error" in response.json()["detail"]
