@@ -1,0 +1,19 @@
+[run]
+source = app
+omit = 
+    */tests/*
+    */__pycache__/*
+    */venv/*
+
+[report]
+fail_under = 90
+show_missing = true
+precision = 2
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise NotImplementedError
+    if __name__ == .__main__.
+
+[html]
+directory = htmlcov

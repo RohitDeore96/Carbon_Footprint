@@ -1,0 +1,15 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Explicitly block all global/wildcard access by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Rules for the carbon_logs collection
+    match /carbon_logs/{documentId} {
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+      allow read, update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
+    }
+  }
+}

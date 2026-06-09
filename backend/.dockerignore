@@ -1,0 +1,47 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+
+# Test artifacts — never ship to production image
+tests/
+htmlcov/
+.coverage
+coverage.xml
+.pytest_cache/
+
+# Development & IDE configs
+.git/
+.gitignore
+.github/
+*.md
+.vscode/
+.idea/
+*.iml
+
+# Coverage & linting configs (only needed at build time, not runtime)
+.coveragerc
+pytest.ini
+.flake8
+.black
+
+# Local environment files — secrets must never be baked into the image
+.env
+.env.*
+*.env
+
+# OS artifacts
+.DS_Store
+Thumbs.db

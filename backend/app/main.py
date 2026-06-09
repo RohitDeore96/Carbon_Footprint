@@ -1,0 +1,73 @@
+"""Main FastAPI application entry point for the Carbon Footprint Awareness Platform."""
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.constants import AppConstants
+from app.middleware.rate_limiter import RateLimiterMiddleware
+from app.middleware.security_headers import SecurityHeadersMiddleware
+from app.routes.footprint import router as footprint_router
+from app.routes.ai_routes import router as ai_router
+
+
+def _configure_cors(application: FastAPI) -> None:
+    """Apply CORS middleware with explicit origins from constants."""
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=AppConstants.CORS_ALLOWED_ORIGINS,
+        allow_credentials=True,
+        allow_methods=AppConstants.CORS_ALLOWED_METHODS,
+        allow_headers=AppConstants.CORS_ALLOWED_HEADERS,
+    )
+
+
+def _configure_security_headers(application: FastAPI) -> None:
+    """Apply OWASP security headers middleware."""
+    application.add_middleware(SecurityHeadersMiddleware)
+
+
+def _configure_rate_limiter(application: FastAPI) -> None:
+    """Apply in-memory rate limiter middleware."""
+    application.add_middleware(RateLimiterMiddleware)
+
+
+def _register_health_route(application: FastAPI) -> None:
+    """Register the health check endpoint."""
+
+    @application.get("/health")
+    async def health_check() -> dict[str, str]:
+        """Return the current health status and API version."""
+        return {"status": "healthy", "version": "1.0.0"}
+
+
+def _register_footprint_routes(application: FastAPI) -> None:
+    """Register the carbon footprint logging router."""
+    application.include_router(footprint_router)
+
+
+def _register_ai_routes(application: FastAPI) -> None:
+    """Register the AI sustainability insights router."""
+    application.include_router(ai_router)
+
+
+def create_app() -> FastAPI:
+    """Factory function that constructs and configures the FastAPI application."""
+    application: FastAPI = FastAPI(
+        title="Carbon Footprint Awareness Platform API",
+        description=(
+            "Track carbon emissions from daily activities, get AI-powered sustainability "
+            "insights using Google Gemini, and reduce your environmental impact. "
+            "Supports transport, energy, diet, and consumption categories."
+        ),
+        version="1.0.0",
+    )
+    _configure_cors(application)
+    _configure_security_headers(application)
+    _configure_rate_limiter(application)
+    _register_health_route(application)
+    _register_footprint_routes(application)
+    _register_ai_routes(application)
+    return application
+
+
+app: FastAPI = create_app()
