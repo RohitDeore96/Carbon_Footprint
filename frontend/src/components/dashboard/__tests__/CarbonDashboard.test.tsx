@@ -4,7 +4,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import { CarbonDashboard } from '../CarbonDashboard';
 import type {
   CarbonCalculationResponse,
@@ -268,33 +268,43 @@ describe('CarbonDashboard', () => {
   // -------------------------------------------------------------------------
 
   describe('component rendering', () => {
-    it('renders the dashboard section with correct aria-label', () => {
+    it('renders the dashboard section with correct aria-label', async () => {
       mockGetFootprintHistory.mockResolvedValue({ success: true, data: emptyHistoryResponse });
-      render(<CarbonDashboard userId="demo-user-001" />);
+      await act(async () => {
+        render(<CarbonDashboard userId="demo-user-001" />);
+      });
       expect(screen.getByLabelText('Carbon Footprint Dashboard')).toBeInTheDocument();
     });
 
-    it('renders the Log Activity section', () => {
+    it('renders the Log Activity section', async () => {
       mockGetFootprintHistory.mockResolvedValue({ success: true, data: emptyHistoryResponse });
-      render(<CarbonDashboard userId="demo-user-001" />);
+      await act(async () => {
+        render(<CarbonDashboard userId="demo-user-001" />);
+      });
       expect(screen.getByText('Log Activity')).toBeInTheDocument();
     });
 
-    it('renders the Activity History section', () => {
+    it('renders the Activity History section', async () => {
       mockGetFootprintHistory.mockResolvedValue({ success: true, data: emptyHistoryResponse });
-      render(<CarbonDashboard userId="demo-user-001" />);
+      await act(async () => {
+        render(<CarbonDashboard userId="demo-user-001" />);
+      });
       expect(screen.getByText('Activity History')).toBeInTheDocument();
     });
 
-    it('renders the LogActivityForm', () => {
+    it('renders the LogActivityForm', async () => {
       mockGetFootprintHistory.mockResolvedValue({ success: true, data: emptyHistoryResponse });
-      render(<CarbonDashboard userId="demo-user-001" />);
+      await act(async () => {
+        render(<CarbonDashboard userId="demo-user-001" />);
+      });
       expect(screen.getByTestId('log-activity-form')).toBeInTheDocument();
     });
 
-    it('renders the InsightCoach', () => {
+    it('renders the InsightCoach', async () => {
       mockGetFootprintHistory.mockResolvedValue({ success: true, data: emptyHistoryResponse });
-      render(<CarbonDashboard userId="demo-user-001" />);
+      await act(async () => {
+        render(<CarbonDashboard userId="demo-user-001" />);
+      });
       expect(screen.getByTestId('insight-coach')).toBeInTheDocument();
     });
   });
@@ -306,7 +316,9 @@ describe('CarbonDashboard', () => {
   describe('history fetching on mount', () => {
     it('calls getFootprintHistory with userId and 30 days on mount', async () => {
       mockGetFootprintHistory.mockResolvedValue({ success: true, data: emptyHistoryResponse });
-      render(<CarbonDashboard userId="demo-user-001" />);
+      await act(async () => {
+        render(<CarbonDashboard userId="demo-user-001" />);
+      });
       expect(mockGetFootprintHistory).toHaveBeenCalledWith('demo-user-001', 30);
     });
 
@@ -562,26 +574,34 @@ describe('CarbonDashboard', () => {
   describe('Accessibility', () => {
     it('main section has correct aria-label', async () => {
       mockGetFootprintHistory.mockResolvedValue({ success: true, data: emptyHistoryResponse });
-      render(<CarbonDashboard userId="demo-user-001" />);
+      await act(async () => {
+        render(<CarbonDashboard userId="demo-user-001" />);
+      });
       expect(screen.getByLabelText('Carbon Footprint Dashboard')).toBeInTheDocument();
     });
 
     it('aside has correct aria-label', async () => {
       mockGetFootprintHistory.mockResolvedValue({ success: true, data: emptyHistoryResponse });
-      render(<CarbonDashboard userId="demo-user-001" />);
+      await act(async () => {
+        render(<CarbonDashboard userId="demo-user-001" />);
+      });
       expect(screen.getByLabelText('AI Sustainability Coaching')).toBeInTheDocument();
     });
 
     it('log activity section has aria-labelledby', async () => {
       mockGetFootprintHistory.mockResolvedValue({ success: true, data: emptyHistoryResponse });
-      render(<CarbonDashboard userId="demo-user-001" />);
+      await act(async () => {
+        render(<CarbonDashboard userId="demo-user-001" />);
+      });
       const section = screen.getByText('Log Activity').closest('section');
       expect(section).toHaveAttribute('aria-labelledby', 'log-activity-section-heading');
     });
 
     it('activity history section has aria-labelledby', async () => {
       mockGetFootprintHistory.mockResolvedValue({ success: true, data: emptyHistoryResponse });
-      render(<CarbonDashboard userId="demo-user-001" />);
+      await act(async () => {
+        render(<CarbonDashboard userId="demo-user-001" />);
+      });
       const section = screen.getByText('Activity History').closest('section');
       expect(section).toHaveAttribute('aria-labelledby', 'activity-history-section-heading');
     });
