@@ -16,7 +16,6 @@ import { EmissionGoals } from '../EmissionGoals';
 const STORAGE_KEY = 'carbon-footprint-goals';
 
 const defaultProps = {
-  userId: 'test-user-001',
   totalCo2eKg: 75,
   periodDays: 30,
 };
@@ -226,7 +225,7 @@ describe('EmissionGoals', () => {
         createdAt: '2025-01-01T00:00:00.000Z',
       }));
       // totalCo2eKg=3, periodDays=1 → dailyAvg=3, dailyTarget=100/30=3.33 → under target → streak=1
-      render(<EmissionGoals userId="test" totalCo2eKg={3} periodDays={1} />);
+      render(<EmissionGoals totalCo2eKg={3} periodDays={1} />);
       expect(screen.getByLabelText('Streak: 1 day under target')).toBeInTheDocument();
     });
   });
@@ -346,7 +345,7 @@ describe('EmissionGoals', () => {
         monthlyTargetKg: 165,
         createdAt: '2025-01-01T00:00:00.000Z',
       }));
-      render(<EmissionGoals userId="test" totalCo2eKg={0} periodDays={0} />);
+      render(<EmissionGoals totalCo2eKg={0} periodDays={0} />);
       // dailyAvg = 0/0 → but we guard: periodDays > 0 ? totalCo2eKg/periodDays : 0
       expect(screen.getByLabelText('0.00 kg daily average')).toBeInTheDocument();
     });

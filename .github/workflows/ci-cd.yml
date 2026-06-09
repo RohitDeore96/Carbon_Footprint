@@ -39,8 +39,9 @@ jobs:
         run: black . --check
         
       - name: Run Flake8 linter
-        # Ignore line length and whitespace rules since Black handles our formatting
-        run: flake8 . --extend-ignore=E501,W391,W293
+        # E501: line length (Black handles); W391/W293: whitespace (Black handles)
+        # E203: whitespace before ':' (Black produces this before slice colons)
+        run: flake8 . --extend-ignore=E501,W391,W293,E203
 
       - name: Run mypy type checking
         run: mypy app/ --ignore-missing-imports --no-strict-optional
