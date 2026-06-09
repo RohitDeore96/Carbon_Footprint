@@ -31,8 +31,20 @@ vi.mock('axios', () => ({
       post: mockPost,
       get: mockGet,
       defaults: {},
+      interceptors: {
+        request: { use: vi.fn() },
+        response: { use: vi.fn() },
+      },
     }),
   },
+}));
+
+// ---------------------------------------------------------------------------
+// Mock firebase/auth — getAuth returns an object with no currentUser by default
+// ---------------------------------------------------------------------------
+
+vi.mock('firebase/auth', () => ({
+  getAuth: vi.fn(() => ({ currentUser: null })),
 }));
 
 // ---------------------------------------------------------------------------

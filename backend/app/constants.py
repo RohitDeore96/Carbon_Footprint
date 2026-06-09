@@ -22,7 +22,9 @@ class AppConstants:
     RATE_LIMIT_BURST: Final[int] = 10
 
     # Environment-conditional CSP — stricter in production
-    _IS_PRODUCTION: Final[bool] = os.environ.get("ENVIRONMENT", "development") == "production"
+    _IS_PRODUCTION: Final[bool] = (
+        os.environ.get("ENVIRONMENT", "development") == "production"
+    )
 
     CSP_POLICY_DEVELOPMENT: Final[str] = (
         "default-src 'self'; "
@@ -39,7 +41,7 @@ class AppConstants:
     CSP_POLICY_PRODUCTION: Final[str] = (
         "default-src 'self'; "
         "script-src 'self'; "  # No unsafe-eval in production
-        "style-src 'self'; "   # No unsafe-inline in production
+        "style-src 'self'; "  # No unsafe-inline in production
         "img-src 'self' data:; "
         "font-src 'self' https://fonts.gstatic.com; "
         "connect-src 'self' https://carbon-footprint-12.web.app https://*.run.app https://*.googleapis.com https://*.firebaseio.com; "
@@ -52,7 +54,11 @@ class AppConstants:
     @property
     def CSP_POLICY(cls) -> str:  # type: ignore[override]
         """Return the appropriate CSP policy based on the environment."""
-        return cls.CSP_POLICY_PRODUCTION if cls._IS_PRODUCTION else cls.CSP_POLICY_DEVELOPMENT
+        return (
+            cls.CSP_POLICY_PRODUCTION
+            if cls._IS_PRODUCTION
+            else cls.CSP_POLICY_DEVELOPMENT
+        )
 
     # CORS origins loaded from environment for production safety
     CORS_ALLOWED_ORIGINS: Final[list[str]] = [
@@ -137,9 +143,13 @@ class AppConstants:
     }
 
     # Vertex AI — read from environment with sensible defaults for development
-    VERTEX_AI_PROJECT_ID: Final[str] = os.environ.get("VERTEX_AI_PROJECT_ID", "carbon-footprint-12")
+    VERTEX_AI_PROJECT_ID: Final[str] = os.environ.get(
+        "VERTEX_AI_PROJECT_ID", "carbon-footprint-12"
+    )
     VERTEX_AI_LOCATION: Final[str] = os.environ.get("VERTEX_AI_LOCATION", "us-central1")
-    VERTEX_AI_MODEL_NAME: Final[str] = os.environ.get("VERTEX_AI_MODEL_NAME", "gemini-2.5-flash")
+    VERTEX_AI_MODEL_NAME: Final[str] = os.environ.get(
+        "VERTEX_AI_MODEL_NAME", "gemini-2.5-flash"
+    )
     VERTEX_AI_TIMEOUT_SECONDS: Final[int] = 30
     VERTEX_AI_MAX_OUTPUT_TOKENS: Final[int] = 1024
     VERTEX_AI_TEMPERATURE: Final[float] = 0.7

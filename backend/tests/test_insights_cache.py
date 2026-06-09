@@ -111,9 +111,7 @@ class TestGetCachedInsight:
 
     @pytest.mark.unit
     @patch("app.services.insights_cache._get_db")
-    def test_cache_with_none_data_returns_none(
-        self, mock_get_db: MagicMock
-    ) -> None:
+    def test_cache_with_none_data_returns_none(self, mock_get_db: MagicMock) -> None:
         """Verify None is returned when document to_dict returns None."""
         mock_db = MagicMock()
         mock_doc = MagicMock()
@@ -129,9 +127,7 @@ class TestGetCachedInsight:
 
     @pytest.mark.unit
     @patch("app.services.insights_cache._get_db")
-    def test_cache_without_cached_at_returns_none(
-        self, mock_get_db: MagicMock
-    ) -> None:
+    def test_cache_without_cached_at_returns_none(self, mock_get_db: MagicMock) -> None:
         """Verify None is returned when cached_at field is missing."""
         mock_db = MagicMock()
         mock_doc = MagicMock()
@@ -147,9 +143,7 @@ class TestGetCachedInsight:
 
     @pytest.mark.unit
     @patch("app.services.insights_cache._get_db")
-    def test_cache_read_exception_returns_none(
-        self, mock_get_db: MagicMock
-    ) -> None:
+    def test_cache_read_exception_returns_none(self, mock_get_db: MagicMock) -> None:
         """Verify None is returned when Firestore read throws an exception."""
         mock_get_db.side_effect = Exception("Firestore unavailable")
 
@@ -162,9 +156,7 @@ class TestSetCachedInsight:
 
     @pytest.mark.unit
     @patch("app.services.insights_cache._get_db")
-    def test_set_cached_insight_stores_document(
-        self, mock_get_db: MagicMock
-    ) -> None:
+    def test_set_cached_insight_stores_document(self, mock_get_db: MagicMock) -> None:
         """Verify set_cached_insight writes to the correct collection and document."""
         mock_db = MagicMock()
         mock_get_db.return_value = mock_db

@@ -7,7 +7,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.constants import AppConstants
 from app.middleware.auth import get_current_user
-from app.schemas import CarbonCalculationRequest, CarbonCalculationResponse, EmissionResult
+from app.schemas import (
+    CarbonCalculationRequest,
+    CarbonCalculationResponse,
+    EmissionResult,
+)
 from app.services.firebase_service import FirebaseService
 from app.utils.entry_processor import process_all_entries, sum_total_emissions
 
@@ -137,7 +141,9 @@ async def get_footprint_history(
     effective_user_id = _verify_user_access(authenticated_uid, user_id)
     try:
         service: FirebaseService = _get_firebase_service()
-        logs = await asyncio.to_thread(service.get_user_logs, effective_user_id, period_days)
+        logs = await asyncio.to_thread(
+            service.get_user_logs, effective_user_id, period_days
+        )
         return {
             "user_id": effective_user_id,
             "logs": logs,
@@ -185,7 +191,9 @@ async def get_footprint_summary(
     effective_user_id = _verify_user_access(authenticated_uid, user_id)
     try:
         service: FirebaseService = _get_firebase_service()
-        logs = await asyncio.to_thread(service.get_user_logs, effective_user_id, period_days)
+        logs = await asyncio.to_thread(
+            service.get_user_logs, effective_user_id, period_days
+        )
         total_co2e = round(sum(log.get("total_co2e_kg", 0) for log in logs), 4)
         category_map: dict[str, float] = {}
         for log in logs:

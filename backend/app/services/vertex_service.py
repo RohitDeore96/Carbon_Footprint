@@ -10,6 +10,7 @@ import asyncio
 import json
 import logging
 import re
+import time as time_module
 from typing import Any
 
 from google import genai
@@ -145,9 +146,7 @@ def _format_chat_prompt(
     safe_data = json.dumps(user_data.get("emission_breakdown", []), indent=2)
     history_lines = "\n".join(
         f"  {_sanitize_for_prompt(msg['role']).capitalize()}: {_sanitize_for_prompt(msg['content'])}"
-        for msg in conversation_history[
-            -AppConstants.MAX_CHAT_CONTEXT_MESSAGES:
-        ]
+        for msg in conversation_history[-AppConstants.MAX_CHAT_CONTEXT_MESSAGES :]
     )
     return (
         f"You are a Sustainability Coach. Continue this conversation naturally.\n\n"
@@ -358,7 +357,9 @@ class VertexAiService:
 
         # Fallback to secondary model
         try:
-            logger.info("Trying fallback model: %s", AppConstants.VERTEX_AI_FALLBACK_MODEL)
+            logger.info(
+                "Trying fallback model: %s", AppConstants.VERTEX_AI_FALLBACK_MODEL
+            )
             prompt: str = _format_prompt(user_data)
             response = self._client.models.generate_content(
                 model=AppConstants.VERTEX_AI_FALLBACK_MODEL,
@@ -460,7 +461,3 @@ class VertexAiService:
             contents=prompt,
             config=self._config,
         )
-
-
-# Used only inside generate_insights sync method for backoff
-import time as time_module

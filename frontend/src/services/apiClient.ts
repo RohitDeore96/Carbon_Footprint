@@ -228,6 +228,19 @@ export interface FootprintHistoryResponse {
   readonly period_days: number;
 }
 
+export interface CategoryBreakdownEntry {
+  readonly category: string;
+  readonly total_co2e_kg: number;
+}
+
+export interface FootprintSummaryResponse {
+  readonly user_id: string;
+  readonly period_days: number;
+  readonly total_co2e_kg: number;
+  readonly entry_count: number;
+  readonly category_breakdown: readonly CategoryBreakdownEntry[];
+}
+
 async function getFootprintHistory(
   userId: string,
   periodDays: number = 30,
@@ -257,9 +270,25 @@ async function postChatRequest(
   }
 }
 
+async function getFootprintSummary(
+  userId: string,
+  periodDays: number = 30,
+): Promise<ApiResult<FootprintSummaryResponse>> {
+  try {
+    const response: AxiosResponse<FootprintSummaryResponse> = await httpClient.get(
+      `/api/v1/footprint/summary/${userId}`,
+      { params: { period_days: periodDays } },
+    );
+    return { success: true, data: response.data };
+  } catch (err) {
+    return { success: false, error: buildApiError(err as AxiosError) };
+  }
+}
+
 export const apiClient = {
   postFootprintLog,
   postInsightsRequest,
   postChatRequest,
   getFootprintHistory,
+  getFootprintSummary,
 } as const;
