@@ -79,8 +79,12 @@ class AppConstants:
         ).split(",")
         if origin.strip()
     ]
-    CORS_ALLOWED_METHODS: Final[list[str]] = ["GET", "POST", "PUT", "DELETE"]
-    CORS_ALLOWED_HEADERS: Final[list[str]] = ["Content-Type", "Authorization"]
+    CORS_ALLOWED_METHODS: Final[list[str]] = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    CORS_ALLOWED_HEADERS: Final[list[str]] = [
+        "Content-Type",
+        "Authorization",
+        "X-Requested-With",
+    ]
 
     HSTS_MAX_AGE: Final[int] = 31536000
     X_FRAME_OPTIONS: Final[str] = "DENY"

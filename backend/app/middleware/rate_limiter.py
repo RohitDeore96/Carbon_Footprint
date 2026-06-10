@@ -318,6 +318,11 @@ class InMemoryRateLimiterMiddleware(BaseHTTPMiddleware):
         call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
         """Check rate limits and either forward the request or return 429."""
+        # CORS preflight requests must never be rate-limited,
+        # otherwise the browser blocks the actual request.
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
         client_ip: str = _get_client_ip(request)
         current_time: float = time.time()
 
@@ -359,6 +364,11 @@ class RateLimiterMiddleware(BaseHTTPMiddleware):
         call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
         """Check rate limits and either forward the request or return 429."""
+        # CORS preflight requests must never be rate-limited,
+        # otherwise the browser blocks the actual request.
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
         client_ip: str = _get_client_ip(request)
         count: int = await self._rate_limiter.check_and_increment(client_ip)
 
