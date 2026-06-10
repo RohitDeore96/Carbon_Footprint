@@ -196,9 +196,7 @@ class TestGetDb:
     def test_get_db_calls_ensure_init_and_returns_client(self) -> None:
         """Verify _get_db initializes Firebase and returns a Firestore client."""
         mock_client = MagicMock()
-        with patch(
-            "app.services.firebase_service.ensure_firebase_initialized"
-        ):
+        with patch("app.services.firebase_service.ensure_firebase_initialized"):
             with patch(
                 "app.services.insights_cache.firebase_firestore.client",
                 return_value=mock_client,
