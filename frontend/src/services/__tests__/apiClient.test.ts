@@ -81,6 +81,10 @@ const mockHistoryResponse: FootprintHistoryResponse = {
   logs: [mockCalculationResponse],
   count: 1,
   period_days: 30,
+  page: 1,
+  page_size: 20,
+  total_pages: 1,
+  has_next: false,
 };
 
 const mockSummaryResponse: FootprintSummaryResponse = {

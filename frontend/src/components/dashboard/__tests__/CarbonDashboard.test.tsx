@@ -107,6 +107,10 @@ const successHistoryResponse: FootprintHistoryResponse = {
   logs: [makeLog()],
   count: 1,
   period_days: 30,
+  page: 1,
+  page_size: 20,
+  total_pages: 1,
+  has_next: false,
 };
 
 const emptyHistoryResponse: FootprintHistoryResponse = {
@@ -114,6 +118,10 @@ const emptyHistoryResponse: FootprintHistoryResponse = {
   logs: [],
   count: 0,
   period_days: 30,
+  page: 1,
+  page_size: 20,
+  total_pages: 0,
+  has_next: false,
 };
 
 // ---------------------------------------------------------------------------
