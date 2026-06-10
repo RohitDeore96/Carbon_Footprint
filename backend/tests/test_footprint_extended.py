@@ -1,18 +1,13 @@
 """Extended tests for footprint.py — covers _sanitize_description, _write_to_firestore retry, and get_firebase_service singleton."""
 
-import re
 from unittest.mock import MagicMock, patch
 
 import pytest
-from fastapi.testclient import TestClient
 
-from app.main import app
 from app.routes.footprint import (
     _sanitize_description,
     _write_to_firestore,
     get_firebase_service,
-    _firebase_service_instance,
-    _singleton_lock,
 )
 
 

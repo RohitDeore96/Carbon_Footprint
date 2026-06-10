@@ -7,9 +7,7 @@ Covers:
 - Cache eviction when at capacity
 """
 
-import threading
 import time
-from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest

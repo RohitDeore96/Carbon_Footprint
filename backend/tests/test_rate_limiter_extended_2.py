@@ -1,9 +1,5 @@
 """Extended tests for rate_limiter.py — covers _is_valid_ip edge cases."""
 
-from unittest.mock import MagicMock, patch
-
-import pytest
-
 from app.middleware.rate_limiter import _is_valid_ip
 
 

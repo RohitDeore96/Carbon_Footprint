@@ -6,23 +6,15 @@ Covers the uncovered lines in main.py:
 - RequestIdMiddleware dispatch (lines 232-253)
 """
 
-import asyncio
 import signal as signal_module
-from unittest.mock import MagicMock, patch
 
-import pytest
-from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.main import (
     _signal_handler,
     _shutdown_event,
-    _request_count,
-    _error_count,
-    _in_flight_requests,
     create_app,
     app,
-    RequestIdMiddleware,
 )
 
 
@@ -106,7 +98,6 @@ class TestRequestIdMiddleware:
 
     def test_request_id_increments_in_flight(self) -> None:
         """Verify in_flight_requests is tracked correctly."""
-        global _in_flight_requests
         # Make a request and check metrics
         client = TestClient(app)
         client.get("/health")
@@ -130,6 +121,5 @@ class TestAppConfiguration:
     def test_app_has_cors_middleware(self) -> None:
         """Verify CORS middleware is configured."""
         application = create_app()
-        middleware_classes = [type(m).__name__ for m in application.user_middleware]
         # Check that middleware is present (may be wrapped)
         assert len(application.user_middleware) > 0

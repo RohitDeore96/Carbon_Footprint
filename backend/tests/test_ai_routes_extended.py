@@ -2,10 +2,6 @@
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-from fastapi.testclient import TestClient
-
-from app.main import app
 from app.routes.ai_routes import _get_vertex_service
 
 

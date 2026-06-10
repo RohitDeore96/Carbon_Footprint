@@ -4,11 +4,6 @@ Covers register_migration decorator, apply_migrations with various
 version scenarios, and get_migration_status.
 """
 
-import logging
-from unittest.mock import patch
-
-import pytest
-
 from app.services.migration import (
     register_migration,
     apply_migrations,
