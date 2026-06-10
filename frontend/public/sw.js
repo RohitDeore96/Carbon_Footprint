@@ -1,4 +1,4 @@
-const CACHE_NAME = 'carbon-tracker-v1';
+const CACHE_NAME = 'carbon-tracker-v2';
 const PRECACHE_URLS = ['/', '/index.html'];
 
 self.addEventListener('install', (event) => {
@@ -19,7 +19,14 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
-  event.respondWith(
-    fetch(event.request).catch(() => caches.match(event.request))
-  );
+  const url = new URL(event.request.url);
+
+  // Network-first for same-origin, pass-through for cross-origin
+  if (url.origin === self.location.origin) {
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match(event.request))
+    );
+  }
+  // Cross-origin requests (fonts, APIs) bypass the service worker cache
+  // to avoid CSP connect-src issues — the browser handles them directly
 });
