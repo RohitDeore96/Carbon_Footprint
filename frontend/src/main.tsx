@@ -13,3 +13,12 @@ createRoot(rootElement).render(
     <App />
   </StrictMode>,
 )
+
+// Register service worker after app mount (CSP-compliant: no inline scripts)
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((error: Error) => {
+      console.error('Service worker registration failed:', error);
+    });
+  });
+}

@@ -28,10 +28,13 @@ class AppConstants:
     CSP_POLICY_DEVELOPMENT: Final[str] = (
         "default-src 'self'; "
         "script-src 'self' 'unsafe-eval'; "  # Vite HMR needs eval in dev
-        "style-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         "img-src 'self' data:; "
         "font-src 'self' https://fonts.gstatic.com; "
-        "connect-src 'self' https://carbon-footprint-12.web.app https://*.run.app https://*.googleapis.com https://*.firebaseio.com; "
+        "connect-src 'self' https://carbon-footprint-12.web.app "
+        "https://*.run.app https://*.googleapis.com https://*.firebaseio.com; "
+        "object-src 'none'; "
+        "worker-src 'self'; "
         "frame-ancestors 'none'; "
         "base-uri 'self'; "
         "form-action 'self'"
@@ -40,10 +43,13 @@ class AppConstants:
     CSP_POLICY_PRODUCTION: Final[str] = (
         "default-src 'self'; "
         "script-src 'self'; "  # No unsafe-eval in production
-        "style-src 'self'; "  # No unsafe-inline in production
+        "style-src 'self' https://fonts.googleapis.com; "  # No unsafe-inline in production
         "img-src 'self' data:; "
         "font-src 'self' https://fonts.gstatic.com; "
-        "connect-src 'self' https://carbon-footprint-12.web.app https://*.run.app https://*.googleapis.com https://*.firebaseio.com; "
+        "connect-src 'self' https://carbon-footprint-12.web.app "
+        "https://*.run.app https://*.googleapis.com https://*.firebaseio.com; "
+        "object-src 'none'; "
+        "worker-src 'self'; "
         "frame-ancestors 'none'; "
         "base-uri 'self'; "
         "form-action 'self'"

@@ -124,7 +124,7 @@ class FirebaseService:
             .limit(AppConstants.FIREBASE_QUERY_LIMIT)
             .stream()
         )
-        return [doc.to_dict() for doc in docs]
+        return [d for doc in docs if (d := doc.to_dict()) is not None]
 
     def _persist_document(self, document: dict[str, Any]) -> str:
         """Persist a single document to the carbon logs collection.
