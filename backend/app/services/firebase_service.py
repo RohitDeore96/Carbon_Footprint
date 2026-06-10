@@ -30,8 +30,6 @@ def _get_firestore_client() -> FirestoreClient:
     return firestore.client()
 
 
-
-
 def _build_log_document(
     user_id: str,
     total_co2e_kg: float,
