@@ -6,7 +6,6 @@
  */
 
 import React, { useCallback, useEffect, useRef, useMemo } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LineChart, Line } from 'recharts';
 import { LogActivityForm } from '../footprint/LogActivityForm';
 import { InsightCoach } from '../coach/InsightCoach';
 import type { InsightCoachHandle } from '../coach/InsightCoach';
@@ -20,6 +19,8 @@ import type {
 } from '../../services/apiClient';
 import { APP_CONSTANTS } from '../../constants/app.constants';
 import { useFootprintData } from '../../hooks/useFootprintData';
+import { EmissionChart, TrendChart, BenchmarkComparison, ChartPlaceholder } from './EmissionCharts';
+import { roundCo2e } from './chartHelpers';
 
 // ---------------------------------------------------------------------------
 // Prop interfaces
@@ -88,9 +89,7 @@ const DEMO_LOGS: CarbonCalculationResponse[] = [
 // Utility helpers
 // ---------------------------------------------------------------------------
 
-function roundCo2e(value: number): number {
-  return Math.round(value * 10000) / 10000;
-}
+// roundCo2e is imported from chartHelpers.ts
 
 function buildEmissionBreakdown(
   logs: readonly CarbonCalculationResponse[],
@@ -136,6 +135,17 @@ function computePeriodDays(logs: readonly CarbonCalculationResponse[]): number {
   const maxDate = dates.reduce((a, b) => (a > b ? a : b));
   const diffMs = new Date(maxDate).getTime() - new Date(minDate).getTime();
   return Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+}
+
+function computeDailyEmissions(logs: readonly CarbonCalculationResponse[]): { date: string; co2e_kg: number }[] {
+  const dailyMap = new Map<string, number>();
+  for (const log of logs) {
+    for (const result of log.results) {
+      const dateKey = result.date?.slice(0, 10) ?? 'unknown';
+      dailyMap.set(dateKey, (dailyMap.get(dateKey) ?? 0) + result.co2e_kg);
+    }
+  }
+  return Array.from(dailyMap.entries()).map(([date, co2e_kg]) => ({ date, co2e_kg: roundCo2e(co2e_kg) }));
 }
 
 // ---------------------------------------------------------------------------
@@ -193,19 +203,22 @@ const ActivityLogList = React.memo(function ActivityLogList({
   if (logs.length === 0) return <EmptyLogState onLoadDemo={onLoadDemo} />;
   return (
     <ol className="activity-log-list" aria-label="Logged carbon footprint activities">
-      {logs.map((log) => (
-        <li key={log.document_id} className="activity-log-item" id={`log-item-${log.document_id}`}>
+      {logs.map((log, index) => {
+        const logId = log.document_id ?? `log-${index}`;
+        const logEntryCount = log.entry_count ?? log.results?.length ?? 1;
+        return (
+        <li key={logId} className="activity-log-item" id={`log-item-${logId}`}>
           <header className="log-item-header">
             <span className="log-item-total" aria-label={`${log.total_co2e_kg} kg CO₂e`}>
               {log.total_co2e_kg} kg CO₂e
             </span>
             <span className="log-item-count">
-              {log.entry_count} {log.entry_count === 1 ? 'entry' : 'entries'}
+              {logEntryCount} {logEntryCount === 1 ? 'entry' : 'entries'}
             </span>
           </header>
           <ul className="log-item-results" aria-label="Emission breakdown">
             {log.results.map((result, i) => (
-              <li key={`${log.document_id}-result-${i}`} className="log-result-item">
+              <li key={`${logId}-result-${i}`} className="log-result-item">
                 <span className="log-result-category">{result.category}</span>
                 <span className="log-result-desc">{result.description}</span>
                 <span className="log-result-value" aria-label={`${result.co2e_kg} kg CO₂e`}>
@@ -215,7 +228,7 @@ const ActivityLogList = React.memo(function ActivityLogList({
             ))}
           </ul>
         </li>
-      ))}
+      );})}
     </ol>
   );
 });
@@ -226,7 +239,7 @@ const SummaryStats = React.memo(function SummaryStats({
   readonly logs: readonly CarbonCalculationResponse[];
 }): React.JSX.Element {
   const total = computeTotalCo2e(logs);
-  const entryCount = logs.reduce((sum, l) => sum + l.entry_count, 0);
+  const entryCount = logs.reduce((sum, l) => sum + (l.entry_count ?? l.results?.length ?? 1), 0);
   return (
     <div className="stats-row" role="region" aria-label="Carbon footprint summary statistics">
       <DashboardStat
@@ -251,187 +264,8 @@ const SummaryStats = React.memo(function SummaryStats({
   );
 });
 
-// ---------------------------------------------------------------------------
-// Emission Chart Component
-// ---------------------------------------------------------------------------
-
-const BENCHMARK_LINE = APP_CONSTANTS.BENCHMARK_GLOBAL_DAILY_AVG_KG;
-const PARIS_TARGET = APP_CONSTANTS.BENCHMARK_PARIS_TARGET_KG;
-
-const CATEGORY_COLORS: Record<string, string> = { ...APP_CONSTANTS.CATEGORY_COLORS };
-
-const EmissionChart = React.memo(function EmissionChart({
-  breakdown,
-}: {
-  readonly breakdown: EmissionSummaryEntry[];
-}): React.JSX.Element {
-  const chartData = breakdown.map((entry) => ({
-    category: entry.category.charAt(0).toUpperCase() + entry.category.slice(1),
-    co2e: roundCo2e(entry.total_co2e_kg),
-    color: CATEGORY_COLORS[entry.category] ?? '#818cf8',
-  }));
-
-  return (
-    <div className="emission-chart-container" role="img" aria-label="Emission breakdown chart showing CO2e by category">
-      <ResponsiveContainer width="100%" height={260}>
-        <BarChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.15)" />
-          <XAxis
-            dataKey="category"
-            stroke="#94a3b8"
-            tick={{ fill: '#94a3b8', fontSize: 13 }}
-            axisLine={{ stroke: 'rgba(99,102,241,0.2)' }}
-          />
-          <YAxis
-            stroke="#94a3b8"
-            tick={{ fill: '#94a3b8', fontSize: 12 }}
-            axisLine={{ stroke: 'rgba(99,102,241,0.2)' }}
-            label={{ value: 'kg CO₂e', angle: -90, position: 'insideLeft', fill: '#64748b', fontSize: 12 }}
-          />
-          <Tooltip
-            contentStyle={{
-              background: '#1e293b',
-              border: '1px solid rgba(99,102,241,0.3)',
-              borderRadius: '8px',
-              color: '#e2e8f0',
-              fontSize: '0.875rem',
-            }}
-            formatter={(value) => [`${value} kg CO₂e`, 'Emissions']}
-          />
-          <Bar dataKey="co2e" radius={[6, 6, 0, 0]} barSize={48}>
-            {chartData.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={entry.color} />
-            ))}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
-    </div>
-  );
-});
-
-// ---------------------------------------------------------------------------
-// Trend Chart Component
-// ---------------------------------------------------------------------------
-
-const TrendChart = React.memo(function TrendChart({
-  logs,
-}: {
-  readonly logs: readonly CarbonCalculationResponse[];
-}): React.JSX.Element {
-  const dailyMap = new Map<string, number>();
-  for (const log of logs) {
-    const dateKey = log.results[0]?.date?.slice(0, 10) ?? 'unknown';
-    dailyMap.set(dateKey, (dailyMap.get(dateKey) ?? 0) + log.total_co2e_kg);
-  }
-  const chartData = Array.from(dailyMap.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, co2e]) => ({
-      date: date.slice(5),
-      co2e: roundCo2e(co2e),
-      benchmark: BENCHMARK_LINE,
-      target: PARIS_TARGET,
-    }));
-
-  if (chartData.length < 2) {
-    return (
-      <p className="trend-chart-insufficient" role="status">
-        Log at least 2 days of activities to see your emission trend.
-      </p>
-    );
-  }
-
-  return (
-    <div className="emission-chart-container" role="img" aria-label="Daily emission trend chart with benchmark comparison">
-      <ResponsiveContainer width="100%" height={260}>
-        <LineChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.15)" />
-          <XAxis
-            dataKey="date"
-            stroke="#94a3b8"
-            tick={{ fill: '#94a3b8', fontSize: 12 }}
-            axisLine={{ stroke: 'rgba(99,102,241,0.2)' }}
-          />
-          <YAxis
-            stroke="#94a3b8"
-            tick={{ fill: '#94a3b8', fontSize: 12 }}
-            axisLine={{ stroke: 'rgba(99,102,241,0.2)' }}
-            label={{ value: 'kg CO₂e', angle: -90, position: 'insideLeft', fill: '#64748b', fontSize: 12 }}
-          />
-          <Tooltip
-            contentStyle={{
-              background: '#1e293b',
-              border: '1px solid rgba(99,102,241,0.3)',
-              borderRadius: '8px',
-              color: '#e2e8f0',
-              fontSize: '0.875rem',
-            }}
-          />
-          <Line type="monotone" dataKey="co2e" stroke="#818cf8" strokeWidth={2} dot={{ fill: '#818cf8', r: 4 }} name="Your Emissions" />
-          <Line type="monotone" dataKey="benchmark" stroke="#fbbf24" strokeWidth={1.5} strokeDasharray="8 4" dot={false} name="Global Avg" />
-          <Line type="monotone" dataKey="target" stroke="#34d399" strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="Paris Target" />
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
-  );
-});
-
-// ---------------------------------------------------------------------------
-// Benchmark Comparison Component
-// ---------------------------------------------------------------------------
-
-const BenchmarkComparison = React.memo(function BenchmarkComparison({
-  totalCo2eKg,
-  periodDays,
-}: {
-  readonly totalCo2eKg: number;
-  readonly periodDays: number;
-}): React.JSX.Element {
-  const dailyAvg = periodDays > 0 ? totalCo2eKg / periodDays : 0;
-  const globalDailyAvg = BENCHMARK_LINE;
-  const parisDailyTarget = PARIS_TARGET;
-  const percentVsGlobal = globalDailyAvg > 0 ? Math.round((dailyAvg / globalDailyAvg) * 100) : 0;
-  const percentVsParis = parisDailyTarget > 0 ? Math.round((dailyAvg / parisDailyTarget) * 100) : 0;
-
-  return (
-    <div className="benchmark-comparison" role="region" aria-label="Emission benchmark comparison">
-      <div className="benchmark-item">
-        <span className="benchmark-label">Your Daily Avg</span>
-        <span className="benchmark-value" aria-label={`${dailyAvg.toFixed(2)} kg CO2e per day`}>
-          {dailyAvg.toFixed(2)} kg
-        </span>
-      </div>
-      <div className="benchmark-item">
-        <span className="benchmark-label">vs Global Avg ({globalDailyAvg} kg/day)</span>
-        <span className={`benchmark-percent ${dailyAvg <= globalDailyAvg ? 'benchmark-good' : 'benchmark-bad'}`}>
-          {percentVsGlobal}%
-        </span>
-      </div>
-      <div className="benchmark-item">
-        <span className="benchmark-label">vs Paris Target ({parisDailyTarget} kg/day)</span>
-        <span className={`benchmark-percent ${dailyAvg <= parisDailyTarget ? 'benchmark-good' : 'benchmark-bad'}`}>
-          {percentVsParis}%
-        </span>
-      </div>
-    </div>
-  );
-});
-
-// ---------------------------------------------------------------------------
-// Placeholder chart for empty state
-// ---------------------------------------------------------------------------
-
-function ChartPlaceholder({ title, icon, description }: {
-  readonly title: string;
-  readonly icon: string;
-  readonly description: string;
-}): React.JSX.Element {
-  return (
-    <div className="chart-placeholder" role="img" aria-label={`${title} placeholder — ${description}`}>
-      <span className="chart-placeholder-icon" aria-hidden="true">{icon}</span>
-      <p className="chart-placeholder-text">{description}</p>
-    </div>
-  );
-}
+// EmissionChart, TrendChart, BenchmarkComparison, ChartPlaceholder are imported from EmissionCharts.tsx
+// BENCHMARK_LINE, PARIS_TARGET, CATEGORY_COLORS constants are in chartHelpers.ts
 
 // ---------------------------------------------------------------------------
 // Main Dashboard
@@ -471,6 +305,7 @@ export function CarbonDashboard({ userId }: CarbonDashboardProps): React.JSX.Ele
   const breakdown = useMemo(() => buildEmissionBreakdown(logs), [logs]);
   const totalCo2e = useMemo(() => computeTotalCo2e(logs), [logs]);
   const periodDays = useMemo(() => computePeriodDays(logs), [logs]);
+  const dailyEmissions = useMemo(() => computeDailyEmissions(logs), [logs]);
   const hasData = logs.length > 0 && breakdown.length > 0;
 
   return (
@@ -604,6 +439,7 @@ export function CarbonDashboard({ userId }: CarbonDashboardProps): React.JSX.Ele
             <EmissionGoals
               totalCo2eKg={totalCo2e}
               periodDays={periodDays}
+              dailyEmissions={dailyEmissions}
             />
           </div>
         </aside>

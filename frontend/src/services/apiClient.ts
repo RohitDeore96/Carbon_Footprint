@@ -235,11 +235,13 @@ const httpClient: AxiosInstance = createAxiosInstance();
 
 async function postFootprintLog(
   payload: CarbonCalculationRequest,
+  signal?: AbortSignal,
 ): Promise<ApiResult<CarbonCalculationResponse>> {
   try {
     const response: AxiosResponse<CarbonCalculationResponse> = await httpClient.post(
       '/api/v1/footprint/log',
       payload,
+      { signal },
     );
     if (!validateResponse<CarbonCalculationResponse>(response.data, ['user_id', 'total_co2e_kg', 'results', 'document_id'] as const)) {
       return { success: false, error: { code: 500, message: 'Invalid response format from server' } };
@@ -252,11 +254,13 @@ async function postFootprintLog(
 
 async function postInsightsRequest(
   payload: InsightsRequest,
+  signal?: AbortSignal,
 ): Promise<ApiResult<InsightsResponse>> {
   try {
     const response: AxiosResponse<InsightsResponse> = await httpClient.post(
       '/api/v1/ai/insights',
       payload,
+      { signal },
     );
     return { success: true, data: response.data };
   } catch (err) {
@@ -308,11 +312,12 @@ export interface FootprintSummaryResponse {
 async function getFootprintHistory(
   userId: string,
   periodDays: number = 30,
+  signal?: AbortSignal,
 ): Promise<ApiResult<FootprintHistoryResponse>> {
   try {
     const response: AxiosResponse<FootprintHistoryResponse> = await httpClient.get(
       `/api/v1/footprint/history/${userId}`,
-      { params: { period_days: periodDays } },
+      { params: { period_days: periodDays }, signal },
     );
     return { success: true, data: response.data };
   } catch (err) {
@@ -322,11 +327,13 @@ async function getFootprintHistory(
 
 async function postChatRequest(
   payload: ChatRequest,
+  signal?: AbortSignal,
 ): Promise<ApiResult<ChatResponse>> {
   try {
     const response: AxiosResponse<ChatResponse> = await httpClient.post(
       '/api/v1/ai/chat',
       payload,
+      { signal },
     );
     return { success: true, data: response.data };
   } catch (err) {
@@ -337,11 +344,12 @@ async function postChatRequest(
 async function getFootprintSummary(
   userId: string,
   periodDays: number = 30,
+  signal?: AbortSignal,
 ): Promise<ApiResult<FootprintSummaryResponse>> {
   try {
     const response: AxiosResponse<FootprintSummaryResponse> = await httpClient.get(
       `/api/v1/footprint/summary/${userId}`,
-      { params: { period_days: periodDays } },
+      { params: { period_days: periodDays }, signal },
     );
     return { success: true, data: response.data };
   } catch (err) {

@@ -5,8 +5,7 @@ Tests cover:
 - POST /api/v1/ai/insights happy path (200 OK)
 - API failure path (simulated quota exceeded and network timeout → 500)
 - Input validation path (empty emission_breakdown → 422)
-
-All Vertex AI client interactions are fully mocked via unittest.mock.
+- Ownership enforcement (403 for cross-user access)
 """
 
 import json
@@ -18,6 +17,7 @@ from fastapi.testclient import TestClient
 
 from app.constants import AppConstants
 from app.main import app
+from app.middleware.auth import get_current_user
 from app.services.vertex_service import (
     VertexAiService,
     _build_response_schema,
@@ -816,3 +816,171 @@ class TestChatEndpointValidation:
         }
         response = client.post("/api/v1/ai/chat", json=payload)
         assert response.status_code == 422
+
+
+# ===========================================================================
+# Integration Tests: AI Route Ownership Enforcement
+# ===========================================================================
+
+
+def _override_auth(uid: str):
+    """Create a dependency override that returns the given UID for get_current_user."""
+
+    async def _mock_get_current_user():
+        return uid
+
+    return _mock_get_current_user
+
+
+class TestAiRouteOwnership:
+    """Integration tests verifying authenticated users can only access their own AI data."""
+
+    @pytest.mark.integration
+    @patch("app.routes.ai_routes._get_vertex_service")
+    def test_insights_cross_user_access_returns_403(
+        self,
+        mock_get_service: MagicMock,
+        client: TestClient,
+        valid_insights_payload: dict[str, Any],
+    ) -> None:
+        """Verify authenticated user cannot request AI insights for another user."""
+        app.dependency_overrides[get_current_user] = _override_auth("auth-user-001")
+        try:
+            # payload has user_id "test-user-ai-001" which differs from "auth-user-001"
+            mock_service = MagicMock()
+            mock_service.generate_insights_async = AsyncMock(
+                return_value={
+                    "insight": "test",
+                    "equivalent_impact": "test",
+                    "actionable_steps": ["step 1"],
+                }
+            )
+            mock_get_service.return_value = mock_service
+            response = client.post("/api/v1/ai/insights", json=valid_insights_payload)
+            assert response.status_code == 403
+            assert "Access denied" in response.json()["detail"]
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+
+    @pytest.mark.integration
+    @patch("app.routes.ai_routes._get_vertex_service")
+    def test_insights_same_user_returns_200(
+        self,
+        mock_get_service: MagicMock,
+        client: TestClient,
+        valid_insights_payload: dict[str, Any],
+        mock_ai_response_dict: dict[str, Any],
+    ) -> None:
+        """Verify authenticated user can request AI insights for their own data."""
+        app.dependency_overrides[get_current_user] = _override_auth("test-user-ai-001")
+        try:
+            mock_service = MagicMock()
+            mock_service.generate_insights_async = AsyncMock(
+                return_value=mock_ai_response_dict
+            )
+            mock_get_service.return_value = mock_service
+            response = client.post("/api/v1/ai/insights", json=valid_insights_payload)
+            assert response.status_code == 200
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+
+    @pytest.mark.integration
+    @patch("app.routes.ai_routes._get_vertex_service")
+    def test_insights_anonymous_user_allowed(
+        self,
+        mock_get_service: MagicMock,
+        client: TestClient,
+        valid_insights_payload: dict[str, Any],
+        mock_ai_response_dict: dict[str, Any],
+    ) -> None:
+        """Verify anonymous users can request AI insights for any user_id."""
+        app.dependency_overrides[get_current_user] = _override_auth("anon-abc123def456")
+        try:
+            mock_service = MagicMock()
+            mock_service.generate_insights_async = AsyncMock(
+                return_value=mock_ai_response_dict
+            )
+            mock_get_service.return_value = mock_service
+            response = client.post("/api/v1/ai/insights", json=valid_insights_payload)
+            assert response.status_code == 200
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+
+    @pytest.mark.integration
+    @patch("app.routes.ai_routes._get_vertex_service")
+    def test_chat_cross_user_access_returns_403(
+        self,
+        mock_get_service: MagicMock,
+        client: TestClient,
+    ) -> None:
+        """Verify authenticated user cannot request AI chat for another user."""
+        app.dependency_overrides[get_current_user] = _override_auth("auth-user-001")
+        try:
+            payload: dict[str, Any] = {
+                "user_id": "different-user-002",
+                "message": "How can I reduce emissions?",
+                "total_co2e_kg": 50.0,
+                "period_days": 30,
+                "emission_breakdown": [
+                    {
+                        "category": "transport",
+                        "total_co2e_kg": 50.0,
+                        "entry_count": 1,
+                        "description": "Car commute",
+                    }
+                ],
+                "conversation_history": [],
+            }
+            mock_service = MagicMock()
+            mock_service.chat_async = AsyncMock(
+                return_value={
+                    "response": "Try biking.",
+                    "suggestions": ["What about transit?"],
+                    "model_used": AppConstants.VERTEX_AI_MODEL_NAME,
+                }
+            )
+            mock_get_service.return_value = mock_service
+            response = client.post("/api/v1/ai/chat", json=payload)
+            assert response.status_code == 403
+            assert "Access denied" in response.json()["detail"]
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+
+    @pytest.mark.integration
+    @patch("app.routes.ai_routes._get_vertex_service")
+    def test_chat_same_user_returns_200(
+        self,
+        mock_get_service: MagicMock,
+        client: TestClient,
+    ) -> None:
+        """Verify authenticated user can request AI chat for their own data."""
+        app.dependency_overrides[get_current_user] = _override_auth("auth-user-001")
+        try:
+            payload: dict[str, Any] = {
+                "user_id": "auth-user-001",
+                "message": "How can I reduce emissions?",
+                "total_co2e_kg": 50.0,
+                "period_days": 30,
+                "emission_breakdown": [
+                    {
+                        "category": "transport",
+                        "total_co2e_kg": 50.0,
+                        "entry_count": 1,
+                        "description": "Car commute",
+                    }
+                ],
+                "conversation_history": [],
+            }
+            mock_service = MagicMock()
+            mock_service.chat_async = AsyncMock(
+                return_value={
+                    "response": "Try biking.",
+                    "suggestions": ["What about transit?"],
+                    "model_used": AppConstants.VERTEX_AI_MODEL_NAME,
+                }
+            )
+            mock_get_service.return_value = mock_service
+            response = client.post("/api/v1/ai/chat", json=payload)
+            assert response.status_code == 200
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)

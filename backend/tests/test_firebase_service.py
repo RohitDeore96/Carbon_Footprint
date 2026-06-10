@@ -177,23 +177,16 @@ class TestFirebaseServiceGetUserLogs:
             "user_id": "user-001",
             "total_co2e_kg": 5.25,
         }
-        # Build chain: collection -> where -> where -> order_by -> limit -> stream
-        # Each mock represents the RETURN value of the previous method call
-        mock_final = MagicMock()  # result of .limit(100) - has .stream()
+        mock_final = MagicMock()
         mock_final.stream.return_value = [mock_doc]
-
-        mock_ordered = MagicMock()  # result of .order_by() - has .limit()
+        mock_ordered = MagicMock()
         mock_ordered.limit.return_value = mock_final
-
-        mock_where_date = MagicMock()  # result of 2nd .where() - has .order_by()
+        mock_where_date = MagicMock()
         mock_where_date.order_by.return_value = mock_ordered
-
-        mock_where_user = MagicMock()  # result of 1st .where() - has .where()
+        mock_where_user = MagicMock()
         mock_where_user.where.return_value = mock_where_date
-
-        mock_collection = MagicMock()  # result of .collection() - has .where()
+        mock_collection = MagicMock()
         mock_collection.where.return_value = mock_where_user
-
         mock_client = MagicMock()
         mock_client.collection.return_value = mock_collection
 

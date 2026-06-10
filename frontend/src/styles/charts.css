@@ -1,0 +1,78 @@
+/* ==========================================================================
+   Charts — Emission chart, benchmark, chart-placeholder, trend-chart
+   ========================================================================== */
+
+.emission-chart-container {
+  margin-top: var(--space-4);
+  padding: var(--space-4);
+  background: rgba(15, 23, 42, 0.5);
+  border-radius: var(--radius-lg);
+}
+
+.benchmark-comparison {
+  display: flex;
+  gap: 1rem;
+  padding: 1rem;
+  margin-top: 1rem;
+  background: rgba(30, 41, 59, 0.6);
+  border-radius: 12px;
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  flex-wrap: wrap;
+}
+.benchmark-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  min-width: 120px;
+}
+.benchmark-label {
+  font-size: 0.75rem;
+  color: var(--color-text-muted, #64748b);
+  text-align: center;
+}
+.benchmark-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-text, #e2e8f0);
+}
+.benchmark-percent {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+.benchmark-good {
+  color: #34d399;
+}
+.benchmark-bad {
+  color: #f87171;
+}
+
+.chart-placeholder {
+  text-align: center;
+  padding: var(--space-12) var(--space-8);
+  background: rgba(15, 23, 42, 0.3);
+  border: 1px dashed rgba(99,102,241,0.2);
+  border-radius: var(--radius-lg);
+  margin-top: var(--space-4);
+}
+.chart-placeholder-icon {
+  font-size: 2.5rem;
+  display: block;
+  margin-bottom: var(--space-4);
+  opacity: 0.6;
+}
+.chart-placeholder-text {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+/* Insufficient data message for trend chart */
+.trend-chart-insufficient {
+  text-align: center;
+  color: var(--color-text-muted);
+  padding: var(--space-6) var(--space-4);
+  font-size: 0.875rem;
+}

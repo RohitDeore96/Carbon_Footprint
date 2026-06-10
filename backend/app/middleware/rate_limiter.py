@@ -109,6 +109,12 @@ class RateLimiterMiddleware(BaseHTTPMiddleware):
             count: int = self._increment_request_count(client_ip)
             self._evict_if_needed()
 
-        if count > AppConstants.RATE_LIMIT_REQUESTS_PER_MINUTE:
+        # AI endpoints get a stricter rate limit
+        max_requests = (
+            AppConstants.RATE_LIMIT_AI_REQUESTS_PER_MINUTE
+            if request.url.path.startswith("/api/v1/ai/")
+            else AppConstants.RATE_LIMIT_REQUESTS_PER_MINUTE
+        )
+        if count > max_requests:
             return _build_rate_limit_response()
         return await call_next(request)

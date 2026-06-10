@@ -3,8 +3,8 @@
 Caches Gemini responses using a hash of the input data as the key,
 with a configurable TTL (default 24 hours).
 
-Uses ``firebase_admin.firestore`` directly instead of importing a private
-helper from firebase_service, reducing module coupling.
+Reuses the centralized ``ensure_firebase_initialized`` from
+firebase_service to avoid duplicating Firebase initialization logic.
 """
 
 import hashlib
@@ -13,7 +13,6 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-import firebase_admin
 from firebase_admin import firestore as firebase_firestore
 from google.cloud.firestore_v1.client import Client as FirestoreClient
 from google.cloud.firestore_v1.document import DocumentSnapshot
@@ -38,18 +37,10 @@ def _compute_cache_key(user_data: dict[str, Any]) -> str:
 
 
 def _get_db() -> FirestoreClient:
-    """Return a shared Firestore client via firebase_admin directly.
+    """Return a shared Firestore client via the centralized Firebase initialization."""
+    from app.services.firebase_service import ensure_firebase_initialized
 
-    Initializes the Firebase app if needed, then returns the firestore client.
-    This avoids coupling to the private ``_get_firestore_client`` helper in
-    firebase_service.
-    """
-    try:
-        firebase_admin.get_app()
-    except ValueError:
-        from firebase_admin import credentials
-
-        firebase_admin.initialize_app(credentials.ApplicationDefault())
+    ensure_firebase_initialized()
     return firebase_firestore.client()
 
 

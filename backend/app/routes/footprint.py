@@ -18,20 +18,18 @@ logger = logging.getLogger(__name__)
 
 router: APIRouter = APIRouter(prefix="/api/v1/footprint", tags=["footprint"])
 
-# Module-level singleton — created once per process, not per request
-_firebase_service_instance: FirebaseService | None = None
 
+def get_firebase_service() -> FirebaseService:
+    """FastAPI dependency that provides a FirebaseService instance.
 
-def _get_firebase_service() -> FirebaseService:
-    """Return a cached FirebaseService singleton for database operations.
+    Returns a new FirebaseService per request. FastAPI caches dependencies
+    within the same request cycle, so this is efficient for routes that
+    call the service multiple times.
 
-    Uses module-level caching to avoid creating a new service instance
-    (and Firestore client) on every request.
+    Returns:
+        A configured FirebaseService instance.
     """
-    global _firebase_service_instance
-    if _firebase_service_instance is None:
-        _firebase_service_instance = FirebaseService()
-    return _firebase_service_instance
+    return FirebaseService()
 
 
 def _serialize_results(results: list[EmissionResult]) -> list[dict[str, object]]:
@@ -64,6 +62,12 @@ def _verify_user_access(authenticated_uid: str, requested_user_id: str) -> str:
         HTTPException: 403 if the user tries to access another user's data.
     """
     if authenticated_uid.startswith("anon-"):
+        if authenticated_uid != requested_user_id:
+            logger.warning(
+                "Anonymous user %s accessing data for user_id %s",
+                authenticated_uid,
+                requested_user_id,
+            )
         return requested_user_id
     if authenticated_uid != requested_user_id:
         raise HTTPException(
@@ -81,6 +85,7 @@ def _verify_user_access(authenticated_uid: str, requested_user_id: str) -> str:
 async def log_footprint(
     payload: CarbonCalculationRequest,
     authenticated_uid: str = Depends(get_current_user),
+    service: FirebaseService = Depends(get_firebase_service),
 ) -> CarbonCalculationResponse:
     """Ingest, calculate, and persist carbon footprint activity entries.
 
@@ -105,7 +110,7 @@ async def log_footprint(
     results = process_all_entries(payload.entries)
     total_co2e_kg: float = sum_total_emissions(results)
     document_id: str = await asyncio.to_thread(
-        _write_to_firestore, effective_user_id, payload, total_co2e_kg, results
+        _write_to_firestore, service, effective_user_id, payload, total_co2e_kg, results
     )
     return _build_response(effective_user_id, total_co2e_kg, results, document_id)
 
@@ -120,6 +125,7 @@ async def get_footprint_history(
         default=30, ge=1, le=365, description="Lookback period in days"
     ),
     authenticated_uid: str = Depends(get_current_user),
+    service: FirebaseService = Depends(get_firebase_service),
 ) -> dict:
     """Retrieve a user's carbon footprint history from Firestore.
 
@@ -140,7 +146,6 @@ async def get_footprint_history(
     """
     effective_user_id = _verify_user_access(authenticated_uid, user_id)
     try:
-        service: FirebaseService = _get_firebase_service()
         logs = await asyncio.to_thread(
             service.get_user_logs, effective_user_id, period_days
         )
@@ -170,6 +175,7 @@ async def get_footprint_summary(
         default=30, ge=1, le=365, description="Lookback period in days"
     ),
     authenticated_uid: str = Depends(get_current_user),
+    service: FirebaseService = Depends(get_firebase_service),
 ) -> dict:
     """Retrieve an aggregated carbon footprint summary for a user.
 
@@ -190,7 +196,6 @@ async def get_footprint_summary(
     """
     effective_user_id = _verify_user_access(authenticated_uid, user_id)
     try:
-        service: FirebaseService = _get_firebase_service()
         logs = await asyncio.to_thread(
             service.get_user_logs, effective_user_id, period_days
         )
@@ -222,6 +227,7 @@ async def get_footprint_summary(
 
 
 def _write_to_firestore(
+    service: FirebaseService,
     effective_user_id: str,
     payload: CarbonCalculationRequest,
     total_co2e_kg: float,
@@ -230,6 +236,7 @@ def _write_to_firestore(
     """Delegate the Firestore write and handle database errors.
 
     Args:
+        service: The FirebaseService instance to use for the write.
         effective_user_id: The resolved user ID (authenticated or from payload).
         payload: The original validated request payload.
         total_co2e_kg: Aggregated emissions total.
@@ -242,7 +249,6 @@ def _write_to_firestore(
         HTTPException: 500 with detail message if the write operation fails.
     """
     try:
-        service: FirebaseService = _get_firebase_service()
         return service.write_carbon_log(
             effective_user_id,
             total_co2e_kg,

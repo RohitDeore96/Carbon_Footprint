@@ -21,8 +21,8 @@ logger = logging.getLogger(__name__)
 router: APIRouter = APIRouter(prefix="/api/v1/ai", tags=["ai"])
 
 # Rate limiting: The RateLimiterMiddleware (app/main.py) enforces a global
-# per-IP limit of 60 requests/minute with a burst allowance of 10. This
-# protects all AI endpoints from abuse without requiring per-route logic.
+# per-IP limit of 60 requests/minute with a stricter 10 req/min for AI
+# endpoints. This protects all AI endpoints from abuse and cost amplification.
 
 # Module-level singleton — created once per process, not per request
 _vertex_service_instance: VertexAiService | None = None
@@ -41,6 +41,34 @@ def _get_vertex_service() -> VertexAiService:
     if _vertex_service_instance is None:
         _vertex_service_instance = VertexAiService()
     return _vertex_service_instance
+
+
+def _verify_ai_user_access(authenticated_uid: str, requested_user_id: str) -> str:
+    """Verify the authenticated user has access to the requested user's AI data.
+
+    Users can only request AI insights for their own data. Anonymous IDs
+    (anon-*) are treated as unauthenticated — they can access the requested
+    user_id since they have no verified identity to compare against.
+
+    Args:
+        authenticated_uid: UID from Firebase ID token, or generated anonymous ID.
+        requested_user_id: The user_id from the request payload.
+
+    Returns:
+        The effective user_id to use for the AI operation.
+
+    Raises:
+        HTTPException: 403 if the user tries to request AI insights for
+            another user's data.
+    """
+    if authenticated_uid.startswith("anon-"):
+        return requested_user_id
+    if authenticated_uid != requested_user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: users can only request AI insights for their own data",
+        )
+    return authenticated_uid
 
 
 def _build_user_data_payload(
@@ -129,6 +157,7 @@ async def get_insights(
     Raises:
         HTTPException: 500 if the Vertex AI service call fails.
     """
+    _verify_ai_user_access(authenticated_uid, payload.user_id)
     user_data: dict[str, Any] = _build_user_data_payload(payload)
     try:
         service: VertexAiService = _get_vertex_service()
@@ -162,6 +191,7 @@ async def chat(
     Raises:
         HTTPException: 500 if the Vertex AI service call fails.
     """
+    _verify_ai_user_access(authenticated_uid, payload.user_id)
     user_data: dict[str, Any] = _build_user_data_payload(payload)
     conversation_history: list[dict[str, str]] = [
         msg.model_dump() for msg in payload.conversation_history

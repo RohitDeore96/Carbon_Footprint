@@ -88,8 +88,13 @@ async def get_current_user(
 
     token = credentials.credentials
     try:
-        decoded = firebase_auth.verify_id_token(token)
+        decoded = firebase_auth.verify_id_token(token, check_revoked=True)
         return decoded["uid"]
+    except firebase_auth.RevokedIdTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication token has been revoked. Please sign in again.",
+        ) from None
     except firebase_auth.ExpiredIdTokenError:
         logger.warning("Firebase token expired")
         raise HTTPException(

@@ -13,13 +13,14 @@ Tests cover:
 All Firestore interactions are fully mocked via unittest.mock.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
 from app.middleware.auth import get_current_user
+from app.routes.footprint import get_firebase_service
 from app.schemas import (
     ActivityEntry,
     ConsumptionMetrics,
@@ -145,6 +146,15 @@ def _mock_firestore_write() -> MagicMock:
     mock_client = MagicMock()
     mock_client.collection.return_value = mock_collection
     return mock_client
+
+
+def _override_firebase_service(mock_service: MagicMock):
+    """Create a dependency override for get_firebase_service that returns mock_service."""
+
+    def _mock_get_firebase_service():
+        return mock_service
+
+    return _mock_get_firebase_service
 
 
 # ===========================================================================
@@ -416,91 +426,105 @@ class TestFootprintEndpointHappyPath:
     """Integration tests for successful footprint logging requests."""
 
     @pytest.mark.integration
-    @patch("app.routes.footprint._get_firebase_service")
     def test_transport_entry_returns_201(
         self,
-        mock_get_service: MagicMock,
         client: TestClient,
         valid_transport_payload: dict,
     ) -> None:
         """Verify transport entry returns 201 with correct response structure."""
         mock_service = MagicMock()
         mock_service.write_carbon_log.return_value = "mock-doc-id"
-        mock_get_service.return_value = mock_service
-        response = client.post("/api/v1/footprint/log", json=valid_transport_payload)
-        assert response.status_code == 201
-        data: dict = response.json()
-        # user_id in response is now the authenticated UID (anon-...) not payload.user_id
-        assert data["entry_count"] == 1
-        assert data["total_co2e_kg"] == 5.25
-        assert data["document_id"] == "mock-doc-id"
+        app.dependency_overrides[get_firebase_service] = _override_firebase_service(
+            mock_service
+        )
+        try:
+            response = client.post(
+                "/api/v1/footprint/log", json=valid_transport_payload
+            )
+            assert response.status_code == 201
+            data: dict = response.json()
+            # user_id in response is now the authenticated UID (anon-...) not payload.user_id
+            assert data["entry_count"] == 1
+            assert data["total_co2e_kg"] == 5.25
+            assert data["document_id"] == "mock-doc-id"
+        finally:
+            app.dependency_overrides.pop(get_firebase_service, None)
 
     @pytest.mark.integration
-    @patch("app.routes.footprint._get_firebase_service")
     def test_energy_entry_returns_201(
         self,
-        mock_get_service: MagicMock,
         client: TestClient,
         valid_energy_payload: dict,
     ) -> None:
         """Verify energy entry returns 201 with correct emission calculation."""
         mock_service = MagicMock()
         mock_service.write_carbon_log.return_value = "mock-doc-energy"
-        mock_get_service.return_value = mock_service
-        response = client.post("/api/v1/footprint/log", json=valid_energy_payload)
-        assert response.status_code == 201
-        data: dict = response.json()
-        assert data["total_co2e_kg"] == 81.55
+        app.dependency_overrides[get_firebase_service] = _override_firebase_service(
+            mock_service
+        )
+        try:
+            response = client.post("/api/v1/footprint/log", json=valid_energy_payload)
+            assert response.status_code == 201
+            data: dict = response.json()
+            assert data["total_co2e_kg"] == 81.55
+        finally:
+            app.dependency_overrides.pop(get_firebase_service, None)
 
     @pytest.mark.integration
-    @patch("app.routes.footprint._get_firebase_service")
     def test_diet_entry_returns_201(
         self,
-        mock_get_service: MagicMock,
         client: TestClient,
         valid_diet_payload: dict,
     ) -> None:
         """Verify diet entry returns 201 with correct emission calculation."""
         mock_service = MagicMock()
         mock_service.write_carbon_log.return_value = "mock-doc-diet"
-        mock_get_service.return_value = mock_service
-        response = client.post("/api/v1/footprint/log", json=valid_diet_payload)
-        assert response.status_code == 201
-        data: dict = response.json()
-        assert data["total_co2e_kg"] == 20.23
+        app.dependency_overrides[get_firebase_service] = _override_firebase_service(
+            mock_service
+        )
+        try:
+            response = client.post("/api/v1/footprint/log", json=valid_diet_payload)
+            assert response.status_code == 201
+            data: dict = response.json()
+            assert data["total_co2e_kg"] == 20.23
+        finally:
+            app.dependency_overrides.pop(get_firebase_service, None)
 
     @pytest.mark.integration
-    @patch("app.routes.footprint._get_firebase_service")
     def test_multi_entry_returns_201(
         self,
-        mock_get_service: MagicMock,
         client: TestClient,
         multi_entry_payload: dict,
     ) -> None:
         """Verify multi-category payload returns 201 with aggregated total."""
         mock_service = MagicMock()
         mock_service.write_carbon_log.return_value = "mock-doc-multi"
-        mock_get_service.return_value = mock_service
-        response = client.post("/api/v1/footprint/log", json=multi_entry_payload)
-        assert response.status_code == 201
-        data: dict = response.json()
-        assert data["entry_count"] == 3
-        assert len(data["results"]) == 3
+        app.dependency_overrides[get_firebase_service] = _override_firebase_service(
+            mock_service
+        )
+        try:
+            response = client.post("/api/v1/footprint/log", json=multi_entry_payload)
+            assert response.status_code == 201
+            data: dict = response.json()
+            assert data["entry_count"] == 3
+            assert len(data["results"]) == 3
+        finally:
+            app.dependency_overrides.pop(get_firebase_service, None)
 
     @pytest.mark.integration
-    @patch("app.routes.footprint._get_firebase_service")
     def test_authenticated_uid_overrides_payload_user_id(
         self,
-        mock_get_service: MagicMock,
         client: TestClient,
         valid_transport_payload: dict,
     ) -> None:
         """Verify authenticated UID always overrides the payload user_id for security."""
         app.dependency_overrides[get_current_user] = _override_auth("auth-user-999")
+        mock_service = MagicMock()
+        mock_service.write_carbon_log.return_value = "mock-doc-verify"
+        app.dependency_overrides[get_firebase_service] = _override_firebase_service(
+            mock_service
+        )
         try:
-            mock_service = MagicMock()
-            mock_service.write_carbon_log.return_value = "mock-doc-verify"
-            mock_get_service.return_value = mock_service
             response = client.post(
                 "/api/v1/footprint/log", json=valid_transport_payload
             )
@@ -513,6 +537,7 @@ class TestFootprintEndpointHappyPath:
             assert call_args[0][0] == "auth-user-999"
         finally:
             app.dependency_overrides.pop(get_current_user, None)
+            app.dependency_overrides.pop(get_firebase_service, None)
 
 
 # ===========================================================================
@@ -634,10 +659,8 @@ class TestFootprintEndpointDatabaseError:
     """Integration tests simulating Firestore database failures."""
 
     @pytest.mark.integration
-    @patch("app.routes.footprint._get_firebase_service")
     def test_database_timeout_returns_500(
         self,
-        mock_get_service: MagicMock,
         client: TestClient,
         valid_transport_payload: dict,
     ) -> None:
@@ -646,16 +669,21 @@ class TestFootprintEndpointDatabaseError:
         mock_service.write_carbon_log.side_effect = TimeoutError(
             "Firestore connection timed out"
         )
-        mock_get_service.return_value = mock_service
-        response = client.post("/api/v1/footprint/log", json=valid_transport_payload)
-        assert response.status_code == 500
-        assert "Internal server error" in response.json()["detail"]
+        app.dependency_overrides[get_firebase_service] = _override_firebase_service(
+            mock_service
+        )
+        try:
+            response = client.post(
+                "/api/v1/footprint/log", json=valid_transport_payload
+            )
+            assert response.status_code == 500
+            assert "Internal server error" in response.json()["detail"]
+        finally:
+            app.dependency_overrides.pop(get_firebase_service, None)
 
     @pytest.mark.integration
-    @patch("app.routes.footprint._get_firebase_service")
     def test_database_generic_error_returns_500(
         self,
-        mock_get_service: MagicMock,
         client: TestClient,
         valid_transport_payload: dict,
     ) -> None:
@@ -664,16 +692,21 @@ class TestFootprintEndpointDatabaseError:
         mock_service.write_carbon_log.side_effect = RuntimeError(
             "Unexpected Firestore error"
         )
-        mock_get_service.return_value = mock_service
-        response = client.post("/api/v1/footprint/log", json=valid_transport_payload)
-        assert response.status_code == 500
-        assert "Internal server error" in response.json()["detail"]
+        app.dependency_overrides[get_firebase_service] = _override_firebase_service(
+            mock_service
+        )
+        try:
+            response = client.post(
+                "/api/v1/footprint/log", json=valid_transport_payload
+            )
+            assert response.status_code == 500
+            assert "Internal server error" in response.json()["detail"]
+        finally:
+            app.dependency_overrides.pop(get_firebase_service, None)
 
     @pytest.mark.integration
-    @patch("app.routes.footprint._get_firebase_service")
     def test_database_permission_error_returns_500(
         self,
-        mock_get_service: MagicMock,
         client: TestClient,
         valid_transport_payload: dict,
     ) -> None:
@@ -682,10 +715,17 @@ class TestFootprintEndpointDatabaseError:
         mock_service.write_carbon_log.side_effect = PermissionError(
             "Firestore permission denied"
         )
-        mock_get_service.return_value = mock_service
-        response = client.post("/api/v1/footprint/log", json=valid_transport_payload)
-        assert response.status_code == 500
-        assert "Internal server error" in response.json()["detail"]
+        app.dependency_overrides[get_firebase_service] = _override_firebase_service(
+            mock_service
+        )
+        try:
+            response = client.post(
+                "/api/v1/footprint/log", json=valid_transport_payload
+            )
+            assert response.status_code == 500
+            assert "Internal server error" in response.json()["detail"]
+        finally:
+            app.dependency_overrides.pop(get_firebase_service, None)
 
 
 # ===========================================================================
@@ -742,23 +782,22 @@ class TestFootprintHistoryEndpoint:
     """Integration tests for the footprint history retrieval endpoint."""
 
     @pytest.mark.integration
-    @patch("app.routes.footprint._get_firebase_service")
-    def test_history_returns_200_with_auth(
-        self, mock_get_service: MagicMock, client: TestClient
-    ) -> None:
+    def test_history_returns_200_with_auth(self, client: TestClient) -> None:
         """Verify history endpoint returns 200 with log entries for authenticated user."""
         app.dependency_overrides[get_current_user] = _override_auth("user-001")
+        mock_service = MagicMock()
+        mock_service.get_user_logs.return_value = [
+            {
+                "user_id": "user-001",
+                "total_co2e_kg": 5.25,
+                "results": [{"category": "transport", "co2e_kg": 5.25}],
+                "created_at": "2026-06-08T12:00:00+00:00",
+            }
+        ]
+        app.dependency_overrides[get_firebase_service] = _override_firebase_service(
+            mock_service
+        )
         try:
-            mock_service = MagicMock()
-            mock_service.get_user_logs.return_value = [
-                {
-                    "user_id": "user-001",
-                    "total_co2e_kg": 5.25,
-                    "results": [{"category": "transport", "co2e_kg": 5.25}],
-                    "created_at": "2026-06-08T12:00:00+00:00",
-                }
-            ]
-            mock_get_service.return_value = mock_service
             response = client.get("/api/v1/footprint/history/user-001")
             assert response.status_code == 200
             data: dict = response.json()
@@ -768,41 +807,43 @@ class TestFootprintHistoryEndpoint:
             assert len(data["logs"]) == 1
         finally:
             app.dependency_overrides.pop(get_current_user, None)
+            app.dependency_overrides.pop(get_firebase_service, None)
 
     @pytest.mark.integration
-    @patch("app.routes.footprint._get_firebase_service")
-    def test_history_with_custom_period(
-        self, mock_get_service: MagicMock, client: TestClient
-    ) -> None:
+    def test_history_with_custom_period(self, client: TestClient) -> None:
         """Verify history endpoint accepts period_days query parameter."""
         app.dependency_overrides[get_current_user] = _override_auth("user-001")
+        mock_service = MagicMock()
+        mock_service.get_user_logs.return_value = []
+        app.dependency_overrides[get_firebase_service] = _override_firebase_service(
+            mock_service
+        )
         try:
-            mock_service = MagicMock()
-            mock_service.get_user_logs.return_value = []
-            mock_get_service.return_value = mock_service
             response = client.get("/api/v1/footprint/history/user-001?period_days=7")
             assert response.status_code == 200
             mock_service.get_user_logs.assert_called_once_with("user-001", 7)
         finally:
             app.dependency_overrides.pop(get_current_user, None)
+            app.dependency_overrides.pop(get_firebase_service, None)
 
     @pytest.mark.integration
-    @patch("app.routes.footprint._get_firebase_service")
     def test_history_without_auth_allows_anonymous_access(
-        self, mock_get_service: MagicMock, client: TestClient
+        self, client: TestClient
     ) -> None:
         """Verify anonymous (no auth) users can access history — anon IDs bypass ownership check."""
         mock_service = MagicMock()
         mock_service.get_user_logs.return_value = []
-        mock_get_service.return_value = mock_service
-        response = client.get("/api/v1/footprint/history/user-001")
-        assert response.status_code == 200
+        app.dependency_overrides[get_firebase_service] = _override_firebase_service(
+            mock_service
+        )
+        try:
+            response = client.get("/api/v1/footprint/history/user-001")
+            assert response.status_code == 200
+        finally:
+            app.dependency_overrides.pop(get_firebase_service, None)
 
     @pytest.mark.integration
-    @patch("app.routes.footprint._get_firebase_service")
-    def test_history_cross_user_access_returns_403(
-        self, mock_get_service: MagicMock, client: TestClient
-    ) -> None:
+    def test_history_cross_user_access_returns_403(self, client: TestClient) -> None:
         """Verify authenticated user cannot access another user's history."""
         app.dependency_overrides[get_current_user] = _override_auth("auth-user-001")
         try:
@@ -813,21 +854,21 @@ class TestFootprintHistoryEndpoint:
             app.dependency_overrides.pop(get_current_user, None)
 
     @pytest.mark.integration
-    @patch("app.routes.footprint._get_firebase_service")
-    def test_history_database_error_returns_500(
-        self, mock_get_service: MagicMock, client: TestClient
-    ) -> None:
+    def test_history_database_error_returns_500(self, client: TestClient) -> None:
         """Verify database error during history retrieval returns 500."""
         app.dependency_overrides[get_current_user] = _override_auth("user-001")
+        mock_service = MagicMock()
+        mock_service.get_user_logs.side_effect = RuntimeError("DB error")
+        app.dependency_overrides[get_firebase_service] = _override_firebase_service(
+            mock_service
+        )
         try:
-            mock_service = MagicMock()
-            mock_service.get_user_logs.side_effect = RuntimeError("DB error")
-            mock_get_service.return_value = mock_service
             response = client.get("/api/v1/footprint/history/user-001")
             assert response.status_code == 500
             assert "Internal server error" in response.json()["detail"]
         finally:
             app.dependency_overrides.pop(get_current_user, None)
+            app.dependency_overrides.pop(get_firebase_service, None)
 
 
 # ===========================================================================
@@ -839,37 +880,36 @@ class TestFootprintSummaryEndpoint:
     """Integration tests for the footprint summary aggregation endpoint."""
 
     @pytest.mark.integration
-    @patch("app.routes.footprint._get_firebase_service")
-    def test_summary_returns_200(
-        self, mock_get_service: MagicMock, client: TestClient
-    ) -> None:
+    def test_summary_returns_200(self, client: TestClient) -> None:
         """Verify summary endpoint returns 200 with aggregated data."""
         app.dependency_overrides[get_current_user] = _override_auth("user-001")
+        mock_service = MagicMock()
+        mock_service.get_user_logs.return_value = [
+            {
+                "user_id": "user-001",
+                "total_co2e_kg": 5.25,
+                "results": [
+                    {"category": "transport", "co2e_kg": 5.25, "description": "Car"}
+                ],
+                "created_at": "2026-06-08T12:00:00+00:00",
+            },
+            {
+                "user_id": "user-001",
+                "total_co2e_kg": 23.3,
+                "results": [
+                    {
+                        "category": "energy",
+                        "co2e_kg": 23.3,
+                        "description": "Electricity",
+                    }
+                ],
+                "created_at": "2026-06-07T12:00:00+00:00",
+            },
+        ]
+        app.dependency_overrides[get_firebase_service] = _override_firebase_service(
+            mock_service
+        )
         try:
-            mock_service = MagicMock()
-            mock_service.get_user_logs.return_value = [
-                {
-                    "user_id": "user-001",
-                    "total_co2e_kg": 5.25,
-                    "results": [
-                        {"category": "transport", "co2e_kg": 5.25, "description": "Car"}
-                    ],
-                    "created_at": "2026-06-08T12:00:00+00:00",
-                },
-                {
-                    "user_id": "user-001",
-                    "total_co2e_kg": 23.3,
-                    "results": [
-                        {
-                            "category": "energy",
-                            "co2e_kg": 23.3,
-                            "description": "Electricity",
-                        }
-                    ],
-                    "created_at": "2026-06-07T12:00:00+00:00",
-                },
-            ]
-            mock_get_service.return_value = mock_service
             response = client.get("/api/v1/footprint/summary/user-001")
             assert response.status_code == 200
             data: dict = response.json()
@@ -879,18 +919,18 @@ class TestFootprintSummaryEndpoint:
             assert len(data["category_breakdown"]) == 2
         finally:
             app.dependency_overrides.pop(get_current_user, None)
+            app.dependency_overrides.pop(get_firebase_service, None)
 
     @pytest.mark.integration
-    @patch("app.routes.footprint._get_firebase_service")
-    def test_summary_empty_logs(
-        self, mock_get_service: MagicMock, client: TestClient
-    ) -> None:
+    def test_summary_empty_logs(self, client: TestClient) -> None:
         """Verify summary returns zeros for user with no logs."""
         app.dependency_overrides[get_current_user] = _override_auth("user-001")
+        mock_service = MagicMock()
+        mock_service.get_user_logs.return_value = []
+        app.dependency_overrides[get_firebase_service] = _override_firebase_service(
+            mock_service
+        )
         try:
-            mock_service = MagicMock()
-            mock_service.get_user_logs.return_value = []
-            mock_get_service.return_value = mock_service
             response = client.get("/api/v1/footprint/summary/user-001")
             assert response.status_code == 200
             data: dict = response.json()
@@ -898,32 +938,37 @@ class TestFootprintSummaryEndpoint:
             assert data["entry_count"] == 0
         finally:
             app.dependency_overrides.pop(get_current_user, None)
+            app.dependency_overrides.pop(get_firebase_service, None)
 
     @pytest.mark.integration
-    @patch("app.routes.footprint._get_firebase_service")
     def test_summary_without_auth_allows_anonymous_access(
-        self, mock_get_service: MagicMock, client: TestClient
+        self, client: TestClient
     ) -> None:
         """Verify anonymous (no auth) users can access summary — anon IDs bypass ownership check."""
         mock_service = MagicMock()
         mock_service.get_user_logs.return_value = []
-        mock_get_service.return_value = mock_service
-        response = client.get("/api/v1/footprint/summary/user-001")
-        assert response.status_code == 200
+        app.dependency_overrides[get_firebase_service] = _override_firebase_service(
+            mock_service
+        )
+        try:
+            response = client.get("/api/v1/footprint/summary/user-001")
+            assert response.status_code == 200
+        finally:
+            app.dependency_overrides.pop(get_firebase_service, None)
 
     @pytest.mark.integration
-    @patch("app.routes.footprint._get_firebase_service")
-    def test_summary_database_error_returns_500(
-        self, mock_get_service: MagicMock, client: TestClient
-    ) -> None:
+    def test_summary_database_error_returns_500(self, client: TestClient) -> None:
         """Verify database error during summary retrieval returns 500."""
         app.dependency_overrides[get_current_user] = _override_auth("user-001")
+        mock_service = MagicMock()
+        mock_service.get_user_logs.side_effect = RuntimeError("DB error")
+        app.dependency_overrides[get_firebase_service] = _override_firebase_service(
+            mock_service
+        )
         try:
-            mock_service = MagicMock()
-            mock_service.get_user_logs.side_effect = RuntimeError("DB error")
-            mock_get_service.return_value = mock_service
             response = client.get("/api/v1/footprint/summary/user-001")
             assert response.status_code == 500
             assert "Internal server error" in response.json()["detail"]
         finally:
             app.dependency_overrides.pop(get_current_user, None)
+            app.dependency_overrides.pop(get_firebase_service, None)

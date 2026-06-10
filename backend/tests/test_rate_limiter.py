@@ -3,12 +3,14 @@
 Tests cover:
 - Requests under the rate limit are forwarded normally
 - Requests exceeding the rate limit receive 429 responses
+- AI endpoints receive stricter rate limiting (10 req/min)
 """
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from app.constants import AppConstants
 from app.middleware.rate_limiter import RateLimiterMiddleware
 
 
@@ -19,6 +21,10 @@ def fixture_rate_limit_app() -> FastAPI:
 
     @app.get("/test-endpoint")
     async def test_route() -> dict:
+        return {"status": "ok"}
+
+    @app.post("/api/v1/ai/insights")
+    async def ai_route() -> dict:
         return {"status": "ok"}
 
     app.add_middleware(RateLimiterMiddleware)
@@ -49,8 +55,6 @@ class TestRateLimiterBlocks:
         self, rate_limit_client: TestClient
     ) -> None:
         """Verify requests beyond the limit receive 429 Too Many Requests."""
-        from app.constants import AppConstants
-
         limit = AppConstants.RATE_LIMIT_REQUESTS_PER_MINUTE
         # Send limit + 1 requests
         for _ in range(limit):
@@ -58,5 +62,24 @@ class TestRateLimiterBlocks:
 
         # The next request should be rate limited
         response = rate_limit_client.get("/test-endpoint")
+        assert response.status_code == 429
+        assert "Rate limit exceeded" in response.json()["detail"]
+
+
+class TestRateLimiterAIEndpoints:
+    """Tests for stricter AI endpoint rate limiting."""
+
+    @pytest.mark.unit
+    def test_ai_endpoint_stricter_rate_limit(
+        self, rate_limit_client: TestClient
+    ) -> None:
+        """Verify AI endpoints are rate limited at the stricter 10 req/min."""
+        ai_limit = AppConstants.RATE_LIMIT_AI_REQUESTS_PER_MINUTE
+        # Send limit requests
+        for _ in range(ai_limit):
+            rate_limit_client.post("/api/v1/ai/insights")
+
+        # The next AI request should be rate limited
+        response = rate_limit_client.post("/api/v1/ai/insights")
         assert response.status_code == 429
         assert "Rate limit exceeded" in response.json()["detail"]

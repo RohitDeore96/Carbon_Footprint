@@ -17,6 +17,7 @@ class AppConstants:
     FIREBASE_QUERY_LIMIT: Final[int] = 100
 
     RATE_LIMIT_REQUESTS_PER_MINUTE: Final[int] = 60
+    RATE_LIMIT_AI_REQUESTS_PER_MINUTE: Final[int] = 10
     RATE_LIMIT_BURST: Final[int] = 10
 
     # Environment-conditional CSP — stricter in production

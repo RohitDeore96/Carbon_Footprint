@@ -14,6 +14,7 @@ import React, { useState, useCallback } from 'react';
 export interface EmissionGoalsProps {
   readonly totalCo2eKg: number;
   readonly periodDays: number;
+  readonly dailyEmissions?: readonly { date: string; co2e_kg: number }[];
 }
 
 interface GoalData {
@@ -74,6 +75,7 @@ function getMilestoneMessage(percentage: number): string | null {
 export function EmissionGoals({
   totalCo2eKg,
   periodDays,
+  dailyEmissions,
 }: EmissionGoalsProps): React.JSX.Element {
   // Load goal from localStorage via lazy initializers (avoids setState-in-effect)
   const [goal, setGoal] = useState<GoalData | null>(() => loadGoal());
@@ -161,9 +163,23 @@ export function EmissionGoals({
 
   const isUnderTarget = projectedMonthly <= monthlyTarget;
 
-  // Streak: consecutive days under the daily target rate
-  const dailyTarget = monthlyTarget / 30;
-  const streakDays = dailyAvg <= dailyTarget ? periodDays : 0;
+  // Streak: count consecutive days (from most recent) where daily emission is under target
+  let streakDays = 0;
+  if (dailyEmissions && dailyEmissions.length > 0) {
+    const dailyTarget = monthlyTarget / 30;
+    const sortedDays = [...dailyEmissions].sort((a, b) => b.date.localeCompare(a.date));
+    for (const day of sortedDays) {
+      if (day.co2e_kg <= dailyTarget) {
+        streakDays++;
+      } else {
+        break; // Streak broken
+      }
+    }
+  } else {
+    // Fallback: use average-based approximation when per-day data not available
+    const dailyTarget = monthlyTarget / 30;
+    streakDays = dailyAvg <= dailyTarget ? periodDays : 0;
+  }
 
   const milestoneMessage = getMilestoneMessage(progressPercentage);
 

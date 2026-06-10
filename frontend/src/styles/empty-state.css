@@ -1,0 +1,33 @@
+/* ==========================================================================
+   Empty state — empty-log-state, demo-data-btn
+   ========================================================================== */
+
+.empty-log-state {
+  text-align: center;
+  padding: var(--space-12) var(--space-8);
+  color: var(--color-text-muted);
+}
+.empty-log-icon { font-size: 2.5rem; display: block; margin-bottom: var(--space-4); }
+.empty-log-text { font-size: 0.9375rem; }
+
+.demo-data-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
+  padding: var(--space-3) var(--space-6);
+  background: linear-gradient(135deg, rgba(52,211,153,0.15), rgba(5,150,105,0.1));
+  border: 1px solid rgba(52,211,153,0.35);
+  border-radius: var(--radius-md);
+  color: var(--color-success);
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.demo-data-btn:hover {
+  background: linear-gradient(135deg, rgba(52,211,153,0.25), rgba(5,150,105,0.2));
+  border-color: rgba(52,211,153,0.5);
+  transform: translateY(-1px);
+}

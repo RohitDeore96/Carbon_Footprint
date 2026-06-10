@@ -25,12 +25,11 @@ import {
   type ApiError,
   type CarbonCalculationResponse,
 } from '../../services/apiClient';
+import type { ActivityCategory } from '../../types/activity';
 
 // ---------------------------------------------------------------------------
 // Type helpers
 // ---------------------------------------------------------------------------
-
-type ActivityCategory = 'transport' | 'energy' | 'food' | 'consumption';
 
 const CATEGORY_DEFAULTS: Record<ActivityCategory, ActivityFormValues> = {
   transport: TRANSPORT_DEFAULTS,

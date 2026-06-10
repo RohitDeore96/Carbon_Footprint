@@ -112,7 +112,7 @@ export function ChatCoach({
       period_days: periodDays,
       emission_breakdown: emissionBreakdown,
       conversation_history: conversationHistory,
-    });
+    }, controller.signal);
 
     // Ignore result if request was aborted
     if (controller.signal.aborted) return;

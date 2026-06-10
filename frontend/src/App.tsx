@@ -4,7 +4,18 @@ import { CarbonDashboard } from './components/dashboard/CarbonDashboard';
 import { ToastProvider } from './components/ui/Toast';
 import { signInAnonymouslyAndGetUser, onAuthChange } from './services/firebase';
 import OnboardingModal from './components/onboarding/OnboardingModal';
-import './App.css';
+import './styles/variables.css';
+import './styles/base.css';
+import './styles/layout.css';
+import './styles/dashboard.css';
+import './styles/charts.css';
+import './styles/form.css';
+import './styles/coach.css';
+import './styles/goals.css';
+import './styles/onboarding.css';
+import './styles/export.css';
+import './styles/toast.css';
+import './styles/empty-state.css';
 
 // ---------------------------------------------------------------------------
 // Error Boundary — prevents unhandled runtime errors from crashing the whole app

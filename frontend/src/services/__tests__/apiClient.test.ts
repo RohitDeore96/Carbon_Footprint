@@ -191,7 +191,7 @@ describe('apiClient', () => {
 
       await apiClient.postFootprintLog(samplePayload);
 
-      expect(mockPost).toHaveBeenCalledWith('/api/v1/footprint/log', samplePayload);
+      expect(mockPost).toHaveBeenCalledWith('/api/v1/footprint/log', samplePayload, { signal: undefined });
     });
 
     it('returns error result on HTTP error with response', async () => {
@@ -289,7 +289,7 @@ describe('apiClient', () => {
 
       await apiClient.postInsightsRequest(sampleInsightsPayload);
 
-      expect(mockPost).toHaveBeenCalledWith('/api/v1/ai/insights', sampleInsightsPayload);
+      expect(mockPost).toHaveBeenCalledWith('/api/v1/ai/insights', sampleInsightsPayload, { signal: undefined });
     });
 
     it('returns error result on HTTP error', async () => {
@@ -347,7 +347,7 @@ describe('apiClient', () => {
 
       await apiClient.postChatRequest(chatPayload);
 
-      expect(mockPost).toHaveBeenCalledWith('/api/v1/ai/chat', chatPayload);
+      expect(mockPost).toHaveBeenCalledWith('/api/v1/ai/chat', chatPayload, { signal: undefined });
     });
 
     it('returns error result on HTTP error', async () => {

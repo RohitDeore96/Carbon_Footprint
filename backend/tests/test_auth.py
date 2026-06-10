@@ -5,6 +5,7 @@ Tests cover:
 - get_current_user with valid Firebase ID token
 - get_current_user with expired Firebase ID token (401)
 - get_current_user with invalid Firebase ID token (401)
+- get_current_user with revoked Firebase ID token (401)
 - get_current_user with malformed token (ValueError, 401)
 - get_current_user with uninitialized Firebase SDK (ValueError, 503)
 - get_current_user with connection/timeout errors (503)
@@ -74,7 +75,18 @@ class TestGetCurrentUserValidToken:
         self, mock_firebase_auth: MagicMock, auth_client: TestClient
     ) -> None:
         """Verify valid Firebase ID token returns the decoded UID."""
+        from firebase_admin import auth as firebase_auth_exceptions
+
         mock_firebase_auth.verify_id_token.return_value = {"uid": "user-abc-123"}
+        mock_firebase_auth.RevokedIdTokenError = (
+            firebase_auth_exceptions.RevokedIdTokenError
+        )
+        mock_firebase_auth.ExpiredIdTokenError = (
+            firebase_auth_exceptions.ExpiredIdTokenError
+        )
+        mock_firebase_auth.InvalidIdTokenError = (
+            firebase_auth_exceptions.InvalidIdTokenError
+        )
         response = auth_client.get(
             "/test-auth", headers={"Authorization": "Bearer valid-firebase-token"}
         )
@@ -95,6 +107,9 @@ class TestGetCurrentUserExpiredToken:
 
         mock_firebase_auth.verify_id_token.side_effect = (
             firebase_auth_exceptions.ExpiredIdTokenError("Token expired", None)
+        )
+        mock_firebase_auth.RevokedIdTokenError = (
+            firebase_auth_exceptions.RevokedIdTokenError
         )
         mock_firebase_auth.ExpiredIdTokenError = (
             firebase_auth_exceptions.ExpiredIdTokenError
@@ -123,6 +138,9 @@ class TestGetCurrentUserInvalidToken:
         mock_firebase_auth.verify_id_token.side_effect = (
             firebase_auth_exceptions.InvalidIdTokenError("Invalid token")
         )
+        mock_firebase_auth.RevokedIdTokenError = (
+            firebase_auth_exceptions.RevokedIdTokenError
+        )
         mock_firebase_auth.ExpiredIdTokenError = (
             firebase_auth_exceptions.ExpiredIdTokenError
         )
@@ -144,14 +162,14 @@ class TestGetCurrentUserInvalidToken:
         from firebase_admin import auth as firebase_auth_exceptions
 
         mock_firebase_auth.verify_id_token.side_effect = ValueError("Malformed JWT")
-        # Set specific exception classes so the except branches resolve correctly.
-        # ValueError is not an instance of ExpiredIdTokenError or InvalidIdTokenError,
-        # so it will fall through to the ValueError handler.
         mock_firebase_auth.ExpiredIdTokenError = (
             firebase_auth_exceptions.ExpiredIdTokenError
         )
         mock_firebase_auth.InvalidIdTokenError = (
             firebase_auth_exceptions.InvalidIdTokenError
+        )
+        mock_firebase_auth.RevokedIdTokenError = (
+            firebase_auth_exceptions.RevokedIdTokenError
         )
         response = auth_client.get(
             "/test-auth", headers={"Authorization": "Bearer malformed-token"}
@@ -177,11 +195,44 @@ class TestGetCurrentUserInvalidToken:
         mock_firebase_auth.InvalidIdTokenError = (
             firebase_auth_exceptions.InvalidIdTokenError
         )
+        mock_firebase_auth.RevokedIdTokenError = (
+            firebase_auth_exceptions.RevokedIdTokenError
+        )
         response = auth_client.get(
             "/test-auth", headers={"Authorization": "Bearer some-token"}
         )
         assert response.status_code == 503
         assert "not ready" in response.json()["detail"].lower()
+
+
+class TestGetCurrentUserRevokedToken:
+    """Tests for revoked Firebase ID token."""
+
+    @pytest.mark.unit
+    @patch("app.middleware.auth.firebase_auth")
+    def test_revoked_token_returns_401(
+        self, mock_firebase_auth: MagicMock, auth_client: TestClient
+    ) -> None:
+        """Verify revoked Firebase ID token returns 401 with proper message."""
+        from firebase_admin import auth as firebase_auth_exceptions
+
+        mock_firebase_auth.verify_id_token.side_effect = (
+            firebase_auth_exceptions.RevokedIdTokenError("Token revoked")
+        )
+        mock_firebase_auth.ExpiredIdTokenError = (
+            firebase_auth_exceptions.ExpiredIdTokenError
+        )
+        mock_firebase_auth.InvalidIdTokenError = (
+            firebase_auth_exceptions.InvalidIdTokenError
+        )
+        mock_firebase_auth.RevokedIdTokenError = (
+            firebase_auth_exceptions.RevokedIdTokenError
+        )
+        response = auth_client.get(
+            "/test-auth", headers={"Authorization": "Bearer revoked-token"}
+        )
+        assert response.status_code == 401
+        assert "revoked" in response.json()["detail"].lower()
 
 
 class TestGetCurrentUserServerErrors:
@@ -203,6 +254,9 @@ class TestGetCurrentUserServerErrors:
         )
         mock_firebase_auth.InvalidIdTokenError = (
             firebase_auth_exceptions.InvalidIdTokenError
+        )
+        mock_firebase_auth.RevokedIdTokenError = (
+            firebase_auth_exceptions.RevokedIdTokenError
         )
         response = auth_client.get(
             "/test-auth", headers={"Authorization": "Bearer some-token"}
@@ -227,6 +281,9 @@ class TestGetCurrentUserServerErrors:
         mock_firebase_auth.InvalidIdTokenError = (
             firebase_auth_exceptions.InvalidIdTokenError
         )
+        mock_firebase_auth.RevokedIdTokenError = (
+            firebase_auth_exceptions.RevokedIdTokenError
+        )
         response = auth_client.get(
             "/test-auth", headers={"Authorization": "Bearer some-token"}
         )
@@ -249,6 +306,9 @@ class TestGetCurrentUserServerErrors:
         )
         mock_firebase_auth.InvalidIdTokenError = (
             firebase_auth_exceptions.InvalidIdTokenError
+        )
+        mock_firebase_auth.RevokedIdTokenError = (
+            firebase_auth_exceptions.RevokedIdTokenError
         )
         response = auth_client.get(
             "/test-auth", headers={"Authorization": "Bearer some-token"}

@@ -1,0 +1,144 @@
+/* ==========================================================================
+   Layout — App shell, Loading indicator
+   ========================================================================== */
+
+.app-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(135deg, var(--color-bg-deep) 0%, var(--color-bg-base) 60%, #111827 100%);
+}
+
+.app-header {
+  padding: var(--space-4) var(--space-8);
+  background: rgba(10, 15, 30, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--color-brand-dim);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.app-logo {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--color-brand-primary);
+  text-decoration: none;
+  letter-spacing: -0.025em;
+  background: linear-gradient(135deg, var(--color-brand-primary), var(--color-brand-light));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  transition: opacity var(--transition-fast);
+}
+.app-logo:hover { opacity: 0.85; }
+
+.app-main {
+  flex: 1;
+  padding: var(--space-8) var(--space-8);
+  max-width: 1280px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.app-footer {
+  padding: var(--space-6) var(--space-8);
+  text-align: center;
+  border-top: 1px solid var(--color-brand-border);
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+}
+
+/* Navigation links */
+.app-nav-links {
+  display: flex;
+  gap: var(--space-6);
+  align-items: center;
+}
+.app-nav-link {
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: color var(--transition-fast);
+  white-space: nowrap;
+}
+.app-nav-link:hover,
+.app-nav-link:focus-visible {
+  color: var(--color-brand-light);
+}
+.app-header-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+@media (max-width: 768px) {
+  .app-nav-links {
+    gap: var(--space-3);
+  }
+  .app-nav-link {
+    font-size: 0.75rem;
+  }
+}
+
+/* Loading indicator (shared) */
+.loading-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-8);
+}
+
+.loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid rgba(129, 140, 248, 0.2);
+  border-top-color: var(--color-brand-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+.btn-spinner { width: 16px; height: 16px; border-width: 2px; }
+.loading-text { color: var(--color-text-secondary); font-size: 0.875rem; }
+
+/* History fetch error state */
+.history-error {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  text-align: center;
+  color: #fca5a5;
+}
+
+/* Error boundary fallback */
+.error-boundary-fallback {
+  text-align: center;
+  padding: var(--space-12) var(--space-8);
+  color: var(--color-error);
+}
+.error-boundary-fallback h2 {
+  margin-bottom: var(--space-4);
+}
+.error-boundary-fallback button {
+  margin-top: var(--space-4);
+  padding: var(--space-2) var(--space-6);
+  background: var(--color-brand-primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+@media (max-width: 768px) {
+  .app-main {
+    padding: var(--space-4);
+  }
+}
+
+@media (max-width: 480px) {
+  .app-header { padding: var(--space-3) var(--space-4); }
+}
