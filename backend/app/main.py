@@ -1,10 +1,14 @@
 """Main FastAPI application entry point for the Carbon Footprint Awareness Platform."""
 
 import logging
+import uuid
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
 
 from app.constants import AppConstants
 from app.middleware.auth import ensure_firebase_initialized
@@ -46,6 +50,17 @@ def _configure_security_headers(application: FastAPI) -> None:
     application.add_middleware(SecurityHeadersMiddleware)
 
 
+def _configure_request_id(application: FastAPI) -> None:
+    """Apply request ID propagation middleware for distributed tracing.
+
+    Generates a unique X-Request-ID per request and propagates it
+    to the response header and structured log context. This enables
+    correlation of logs across Cloud Run instances and simplifies
+    debugging of distributed request flows.
+    """
+    application.add_middleware(RequestIdMiddleware)
+
+
 def _configure_rate_limiter(application: FastAPI) -> None:
     """Apply Firestore-backed rate limiter with in-memory fallback."""
     application.add_middleware(RateLimiterMiddleware)
@@ -75,6 +90,27 @@ def _register_admin_routes(application: FastAPI) -> None:
     application.include_router(admin_router)
 
 
+class RequestIdMiddleware(BaseHTTPMiddleware):
+    """Middleware that assigns a unique request ID to every request.
+
+    Generates a UUID4 request identifier and attaches it to:
+    - The ``X-Request-ID`` response header (client-visible)
+    - The ``X-Request-ID`` request state (available to downstream handlers)
+
+    If the client sends an ``X-Request-ID`` header, it is preserved
+    and forwarded, enabling end-to-end trace correlation across
+    microservice boundaries.
+    """
+
+    async def dispatch(self, request: Request, call_next) -> Response:  # type: ignore[override]
+        """Inject request ID into the request/response cycle."""
+        request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+        request.state.request_id = request_id
+        response: Response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        return response
+
+
 def create_app() -> FastAPI:
     """Factory function that constructs and configures the FastAPI application."""
     application: FastAPI = FastAPI(
@@ -89,6 +125,7 @@ def create_app() -> FastAPI:
     )
     _configure_cors(application)
     _configure_security_headers(application)
+    _configure_request_id(application)
     _configure_rate_limiter(application)
     _register_health_route(application)
     _register_footprint_routes(application)

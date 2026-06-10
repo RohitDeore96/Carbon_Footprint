@@ -312,6 +312,11 @@ class VertexAiService:
     def generate_insights(self, user_data: dict[str, Any]) -> dict[str, Any]:
         """Generate sustainability insights from the user's carbon footprint data.
 
+        .. deprecated::
+            Use ``generate_insights_async`` instead. This synchronous method
+            uses ``time.sleep`` for retry backoff, which blocks the event loop
+            if called from an async context. Kept only for backward compatibility.
+
         Checks cache first, then retries with primary model, falls back to
         a secondary model if the primary is unavailable.
 
@@ -353,7 +358,7 @@ class VertexAiService:
                     exc,
                 )
                 if attempt < AppConstants.VERTEX_AI_MAX_RETRIES:
-                    backoff_seconds = 1 * (attempt + 1)
+                    backoff_seconds = 2**attempt  # Exponential backoff
                     logger.info("Retrying in %d seconds...", backoff_seconds)
                     time_module.sleep(backoff_seconds)
 
@@ -420,7 +425,7 @@ class VertexAiService:
                     exc,
                 )
                 if attempt < AppConstants.VERTEX_AI_MAX_RETRIES:
-                    backoff_seconds = 1 * (attempt + 1)
+                    backoff_seconds = 2**attempt  # Exponential backoff
                     logger.info("Retrying in %d seconds (async)...", backoff_seconds)
                     await asyncio.sleep(backoff_seconds)
 

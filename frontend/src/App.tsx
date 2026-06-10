@@ -1,6 +1,5 @@
-import React, { useState, useEffect, Component, type ErrorInfo, type ReactNode } from 'react';
+import React, { useState, useEffect, Component, type ErrorInfo, type ReactNode, lazy, Suspense } from 'react';
 import { AppLayout } from './components/layout/AppLayout';
-import { CarbonDashboard } from './components/dashboard/CarbonDashboard';
 import { ToastProvider } from './components/ui/Toast';
 import { signInAnonymouslyAndGetUser, onAuthChange } from './services/firebase';
 import OnboardingModal from './components/onboarding/OnboardingModal';
@@ -16,6 +15,12 @@ import './styles/onboarding.css';
 import './styles/export.css';
 import './styles/toast.css';
 import './styles/empty-state.css';
+
+// Route-based code splitting: lazy-load heavy components
+// Recharts (~150KB) and AI coach components are loaded only when needed
+const CarbonDashboard = lazy(() =>
+  import('./components/dashboard/CarbonDashboard').then((m) => ({ default: m.CarbonDashboard }))
+);
 
 // ---------------------------------------------------------------------------
 // Error Boundary — prevents unhandled runtime errors from crashing the whole app
@@ -109,7 +114,14 @@ export default function App(): React.JSX.Element {
             <>
               <OnboardingModal />
               <h1 className="sr-only">Carbon Footprint Awareness Platform</h1>
-              <CarbonDashboard userId={userId ?? `fallback-${crypto.randomUUID().slice(0, 12)}`} />
+              <Suspense fallback={
+                <div role="status" aria-live="polite" aria-label="Loading dashboard">
+                  <span className="loading-spinner" aria-hidden="true" />
+                  <p>Loading dashboard...</p>
+                </div>
+              }>
+                <CarbonDashboard userId={userId ?? `fallback-${crypto.randomUUID().slice(0, 12)}`} />
+              </Suspense>
             </>
           )}
         </AppLayout>

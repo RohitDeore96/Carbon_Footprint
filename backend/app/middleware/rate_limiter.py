@@ -57,11 +57,18 @@ def _is_window_expired(window_start: float, current_time: float) -> bool:
 
 
 def _build_rate_limit_response() -> JSONResponse:
-    """Build a 429 Too Many Requests JSON response."""
-    return JSONResponse(
+    """Build a 429 Too Many Requests JSON response with Retry-After header.
+
+    The Retry-After header follows HTTP RFC 7231 Section 7.1.3, informing
+    clients when they can safely retry. The value matches the rate limit
+    window duration in seconds.
+    """
+    response = JSONResponse(
         status_code=429,
         content={"detail": "Rate limit exceeded. Please try again later."},
     )
+    response.headers["Retry-After"] = "60"
+    return response
 
 
 class FirestoreRateLimiter:

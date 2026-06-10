@@ -4,6 +4,7 @@ Provides a strictly typed interface for writing calculated emission data
 to the Firestore ``carbon_logs`` collection via ``firebase-admin``.
 """
 
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -12,6 +13,8 @@ from google.cloud.firestore_v1.client import Client as FirestoreClient
 
 from app.constants import AppConstants
 from app.middleware.auth import ensure_firebase_initialized
+
+logger = logging.getLogger(__name__)
 
 
 def _get_firestore_client() -> FirestoreClient:
@@ -123,6 +126,63 @@ class FirebaseService:
             .stream()
         )
         return [d for doc in docs if (d := doc.to_dict()) is not None]
+
+    def get_aggregated_summary(
+        self, user_id: str, period_days: int = 30
+    ) -> dict[str, Any]:
+        """Retrieve server-side aggregated summary using Firestore aggregation query.
+
+        Uses Firestore's ``aggregation_query`` with Sum and Count accumulators
+        to compute summary statistics on the server, dramatically reducing
+        data transfer compared to fetching all documents.
+
+        Falls back to client-side aggregation if the aggregation query
+        is not supported by the Firestore client version.
+
+        Args:
+            user_id: The unique identifier of the user.
+            period_days: Number of days to look back for logs (default 30).
+
+        Returns:
+            A dictionary with total_co2e_kg, entry_count, and per-category
+            aggregation results.
+        """
+        cutoff: datetime = datetime.now(tz=timezone.utc) - timedelta(days=period_days)
+        query = (
+            self._client.collection(AppConstants.FIREBASE_COLLECTION_CARBON_LOGS)
+            .where("user_id", "==", user_id)
+            .where("created_at", ">=", cutoff)
+        )
+        try:
+            # Server-side aggregation using Firestore AggregationQuery
+            # Type stubs don't include .aggregate() yet; runtime API is stable
+            aggregation = query.aggregate(  # type: ignore[attr-defined]
+                firestore.AggregationField.sum("total_co2e_kg").alias("total_co2e_kg"),
+                firestore.AggregationField.count().alias("entry_count"),
+            )
+            result = aggregation.get()
+            total_co2e = 0.0
+            entry_count = 0
+            for r in result:
+                total_co2e = float(r.get("total_co2e_kg", 0) or 0)
+                entry_count = int(r.get("entry_count", 0) or 0)
+            return {
+                "total_co2e_kg": round(total_co2e, 4),
+                "entry_count": entry_count,
+                "server_aggregated": True,
+            }
+        except (AttributeError, TypeError, Exception) as exc:
+            logger.info(
+                "Firestore aggregation query not supported, using fallback: %s", exc
+            )
+            # Fallback: client-side aggregation from fetched logs
+            logs = self.get_user_logs(user_id, period_days)
+            total_co2e = round(sum(log.get("total_co2e_kg", 0) for log in logs), 4)
+            return {
+                "total_co2e_kg": total_co2e,
+                "entry_count": len(logs),
+                "server_aggregated": False,
+            }
 
     def _persist_document(self, document: dict[str, Any]) -> str:
         """Persist a single document to the carbon logs collection.

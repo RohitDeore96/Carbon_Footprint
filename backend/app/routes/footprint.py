@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import re
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
@@ -20,17 +21,23 @@ logger = logging.getLogger(__name__)
 router: APIRouter = APIRouter(prefix="/api/v1/footprint", tags=["footprint"])
 
 
-def get_firebase_service() -> FirebaseService:
-    """FastAPI dependency that provides a FirebaseService instance.
+_firebase_service_instance: FirebaseService | None = None
 
-    Returns a new FirebaseService per request. FastAPI caches dependencies
-    within the same request cycle, so this is efficient for routes that
-    call the service multiple times.
+
+def get_firebase_service() -> FirebaseService:
+    """FastAPI dependency that provides a singleton FirebaseService instance.
+
+    Returns the same FirebaseService across all requests within a process.
+    The Firestore client internally shares a gRPC channel, so reusing
+    the wrapper avoids unnecessary object allocation and GC pressure.
 
     Returns:
         A configured FirebaseService instance.
     """
-    return FirebaseService()
+    global _firebase_service_instance
+    if _firebase_service_instance is None:
+        _firebase_service_instance = FirebaseService()
+    return _firebase_service_instance
 
 
 def _serialize_results(results: list[EmissionResult]) -> list[dict[str, object]]:
@@ -75,6 +82,10 @@ async def log_footprint(
     )
     results = process_all_entries(payload.entries)
     total_co2e_kg: float = sum_total_emissions(results)
+    # Sanitize description fields as defense-in-depth against XSS
+    for entry in payload.entries:
+        if entry.description:
+            entry.description = _sanitize_description(entry.description)
     document_id: str = await asyncio.to_thread(
         _write_to_firestore, service, effective_user_id, payload, total_co2e_kg, results
     )
@@ -174,12 +185,15 @@ async def get_footprint_summary(
         logs = await asyncio.to_thread(
             service.get_user_logs, effective_user_id, period_days
         )
-        total_co2e = round(sum(log.get("total_co2e_kg", 0) for log in logs), 4)
+        # Single-pass aggregation: merge total and category in one loop
+        total_co2e = 0.0
         category_map: dict[str, float] = {}
         for log in logs:
+            total_co2e += log.get("total_co2e_kg", 0)
             for result in log.get("results", []):
                 cat = result.get("category", "unknown")
                 category_map[cat] = category_map.get(cat, 0) + result.get("co2e_kg", 0)
+        total_co2e = round(total_co2e, 4)
         breakdown = [
             {"category": cat, "total_co2e_kg": round(co2e, 4)}
             for cat, co2e in category_map.items()
@@ -204,6 +218,23 @@ async def get_footprint_summary(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error",
         ) from exc
+
+
+def _sanitize_description(text: str) -> str:
+    """Strip HTML/script tags from user-provided description text.
+
+    Defense-in-depth measure: even though React auto-escapes JSX,
+    the raw data stored in Firestore could be consumed by non-React
+    clients in the future. Stripping HTML tags at the API boundary
+    prevents stored XSS across all consumers.
+
+    Args:
+        text: User-provided description string.
+
+    Returns:
+        The input text with all HTML tags removed.
+    """
+    return re.sub(r"<[^>]*>", "", text)
 
 
 def _write_to_firestore(
