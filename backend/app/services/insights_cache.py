@@ -101,7 +101,7 @@ def set_cached_insight(
         db = _get_db()
         db.collection(CACHE_COLLECTION).document(key).set(
             {
-                "cached_at": datetime.now(timezone.utc),
+                "cached_at": firebase_firestore.SERVER_TIMESTAMP,
                 "insight": insight,
                 "cache_key_prefix": key[:8],
             }

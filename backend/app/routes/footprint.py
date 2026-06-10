@@ -5,7 +5,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from app.middleware.auth import get_current_user
+from app.middleware.auth import get_current_user, verify_user_access
 from app.schemas import (
     CarbonCalculationRequest,
     CarbonCalculationResponse,
@@ -13,6 +13,7 @@ from app.schemas import (
 )
 from app.services.firebase_service import FirebaseService
 from app.utils.entry_processor import process_all_entries, sum_total_emissions
+from app.utils.error_logging import log_error
 
 logger = logging.getLogger(__name__)
 
@@ -44,39 +45,6 @@ def _serialize_results(results: list[EmissionResult]) -> list[dict[str, object]]
     return [result.model_dump() for result in results]
 
 
-def _verify_user_access(authenticated_uid: str, requested_user_id: str) -> str:
-    """Verify the authenticated user has access to the requested user's data.
-
-    Users can only access their own data. Anonymous IDs (anon-*) are
-    treated as unauthenticated — they can access the requested user_id
-    since they have no verified identity to compare against.
-
-    Args:
-        authenticated_uid: UID from Firebase ID token, or generated anonymous ID.
-        requested_user_id: The user_id from the URL path parameter.
-
-    Returns:
-        The effective user_id to use for the query.
-
-    Raises:
-        HTTPException: 403 if the user tries to access another user's data.
-    """
-    if authenticated_uid.startswith("anon-"):
-        if authenticated_uid != requested_user_id:
-            logger.warning(
-                "Anonymous user %s accessing data for user_id %s",
-                authenticated_uid,
-                requested_user_id,
-            )
-        return requested_user_id
-    if authenticated_uid != requested_user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied: users can only access their own data",
-        )
-    return authenticated_uid
-
-
 @router.post(
     "/log",
     response_model=CarbonCalculationResponse,
@@ -102,10 +70,8 @@ async def log_footprint(
     Raises:
         HTTPException: 500 if the database write fails.
     """
-    effective_user_id = (
-        authenticated_uid
-        if not authenticated_uid.startswith("anon-")
-        else payload.user_id
+    effective_user_id = verify_user_access(
+        authenticated_uid, payload.user_id, context="footprint/log"
     )
     results = process_all_entries(payload.entries)
     total_co2e_kg: float = sum_total_emissions(results)
@@ -144,7 +110,9 @@ async def get_footprint_history(
         HTTPException: 403 if user tries to access another user's data.
         HTTPException: 500 if the database read fails.
     """
-    effective_user_id = _verify_user_access(authenticated_uid, user_id)
+    effective_user_id = verify_user_access(
+        authenticated_uid, user_id, context="footprint"
+    )
     try:
         logs = await asyncio.to_thread(
             service.get_user_logs, effective_user_id, period_days
@@ -158,7 +126,12 @@ async def get_footprint_history(
     except HTTPException:
         raise
     except Exception as exc:
-        logger.error("Database read failed for user %s: %s", effective_user_id, exc)
+        log_error(
+            exc,
+            context={"user_id": effective_user_id, "endpoint": "history"},
+            logger=logger,
+            request_path=f"/api/v1/footprint/history/{user_id}",
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error",
@@ -194,7 +167,9 @@ async def get_footprint_summary(
         HTTPException: 403 if user tries to access another user's data.
         HTTPException: 500 if the database read fails.
     """
-    effective_user_id = _verify_user_access(authenticated_uid, user_id)
+    effective_user_id = verify_user_access(
+        authenticated_uid, user_id, context="footprint"
+    )
     try:
         logs = await asyncio.to_thread(
             service.get_user_logs, effective_user_id, period_days
@@ -219,7 +194,12 @@ async def get_footprint_summary(
     except HTTPException:
         raise
     except Exception as exc:
-        logger.error("Database read failed for user %s: %s", effective_user_id, exc)
+        log_error(
+            exc,
+            context={"user_id": effective_user_id, "endpoint": "summary"},
+            logger=logger,
+            request_path=f"/api/v1/footprint/summary/{user_id}",
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error",
@@ -256,7 +236,12 @@ def _write_to_firestore(
             payload.calculation_date,
         )
     except Exception as exc:
-        logger.error("Database write failed: %s", exc)
+        log_error(
+            exc,
+            context={"effective_user_id": effective_user_id, "endpoint": "log"},
+            logger=logger,
+            request_path="/api/v1/footprint/log",
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error",

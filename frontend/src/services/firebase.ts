@@ -41,7 +41,7 @@ export async function signInAnonymouslyAndGetUser(): Promise<{ uid: string }> {
     return { uid: credential.user.uid };
   } catch (error) {
     console.warn('Firebase anonymous sign-in failed, using fallback ID:', error);
-    const fallbackUid = `fallback-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    const fallbackUid = `fallback-${crypto.randomUUID().slice(0, 12)}`;
     return { uid: fallbackUid };
   }
 }

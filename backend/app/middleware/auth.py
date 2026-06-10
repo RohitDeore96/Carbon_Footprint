@@ -4,6 +4,10 @@ Provides a FastAPI dependency that verifies Firebase ID tokens
 from the Authorization header. Generates a unique per-session
 anonymous identity when no token is provided.
 
+Also provides a shared ``verify_user_access`` function used by
+route handlers to enforce data-isolation (users can only access
+their own data, including anonymous users).
+
 Ensures the Firebase Admin SDK is initialized before attempting
 token verification — handles the common deployment issue where
 the SDK is not initialized at startup.
@@ -17,6 +21,8 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from firebase_admin import auth as firebase_auth
 from firebase_admin import credentials, initialize_app, get_app
+
+from app.constants import AppConstants
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +85,7 @@ async def get_current_user(
             the SDK is not properly configured (transient server-side issue).
     """
     if credentials is None:
-        anonymous_id = f"anon-{uuid.uuid4().hex[:12]}"
+        anonymous_id = f"{AppConstants.ANONYMOUS_ID_PREFIX}{uuid.uuid4().hex[:12]}"
         logger.debug("No auth token provided; generated anonymous ID: %s", anonymous_id)
         return anonymous_id
 
@@ -150,3 +156,48 @@ async def get_current_user(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Authentication service error. Please refresh and retry.",
         ) from None
+
+
+def verify_user_access(
+    authenticated_uid: str,
+    requested_user_id: str,
+    context: str = "",
+) -> str:
+    """Verify the authenticated user has access to the requested user's data.
+
+    Users can only access their own data. Anonymous IDs (prefixed with
+    ``ANONYMOUS_ID_PREFIX``) are restricted to accessing only data that
+    matches their own auto-generated anonymous identifier — they cannot
+    access data belonging to any other user_id.
+
+    Args:
+        authenticated_uid: UID from Firebase ID token, or generated anonymous ID.
+        requested_user_id: The user_id from the URL path or request payload.
+        context: Optional label identifying the calling route (e.g. "footprint"
+            or "ai") for structured logging.
+
+    Returns:
+        The effective user_id to use for the query.
+
+    Raises:
+        HTTPException: 403 if the user tries to access another user's data.
+    """
+    if authenticated_uid.startswith(AppConstants.ANONYMOUS_ID_PREFIX):
+        if authenticated_uid != requested_user_id:
+            logger.warning(
+                "Anonymous user %s attempted to access data for user_id %s%s",
+                authenticated_uid,
+                requested_user_id,
+                f" (context: {context})" if context else "",
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: users can only access their own data",
+            )
+        return authenticated_uid
+    if authenticated_uid != requested_user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: users can only access their own data",
+        )
+    return authenticated_uid

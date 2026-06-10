@@ -155,9 +155,12 @@ export function EmissionGoals({
   } else if (projectedMonthly <= 0) {
     progressPercentage = 100;
   } else {
-    progressPercentage = Math.min(
-      100,
-      Math.round((1 - (projectedMonthly - monthlyTarget) / projectedMonthly) * 100),
+    progressPercentage = Math.max(
+      0,
+      Math.min(
+        100,
+        Math.round((1 - (projectedMonthly - monthlyTarget) / projectedMonthly) * 100),
+      ),
     );
   }
 

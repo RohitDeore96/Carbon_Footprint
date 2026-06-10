@@ -5,7 +5,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.middleware.auth import get_current_user
+from app.middleware.auth import get_current_user, verify_user_access
 
 from app.constants import AppConstants
 from app.schemas.ai_schemas import (
@@ -15,6 +15,7 @@ from app.schemas.ai_schemas import (
     InsightsResponse,
 )
 from app.services.vertex_service import VertexAiService
+from app.utils.error_logging import log_error
 
 logger = logging.getLogger(__name__)
 
@@ -41,34 +42,6 @@ def _get_vertex_service() -> VertexAiService:
     if _vertex_service_instance is None:
         _vertex_service_instance = VertexAiService()
     return _vertex_service_instance
-
-
-def _verify_ai_user_access(authenticated_uid: str, requested_user_id: str) -> str:
-    """Verify the authenticated user has access to the requested user's AI data.
-
-    Users can only request AI insights for their own data. Anonymous IDs
-    (anon-*) are treated as unauthenticated — they can access the requested
-    user_id since they have no verified identity to compare against.
-
-    Args:
-        authenticated_uid: UID from Firebase ID token, or generated anonymous ID.
-        requested_user_id: The user_id from the request payload.
-
-    Returns:
-        The effective user_id to use for the AI operation.
-
-    Raises:
-        HTTPException: 403 if the user tries to request AI insights for
-            another user's data.
-    """
-    if authenticated_uid.startswith("anon-"):
-        return requested_user_id
-    if authenticated_uid != requested_user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied: users can only request AI insights for their own data",
-        )
-    return authenticated_uid
 
 
 def _build_user_data_payload(
@@ -114,19 +87,25 @@ def _build_insights_response(
     )
 
 
-def _build_error_response(exc: Exception) -> HTTPException:
+def _build_error_response(exc: Exception, request_path: str = "") -> HTTPException:
     """Map service-layer exceptions to a clean HTTP 500 error response.
 
-    Logs the full exception server-side but returns a generic message
-    to the client to avoid leaking internal details.
+    Logs the full exception server-side with structured logging but returns
+    a generic message to the client to avoid leaking internal details.
 
     Args:
         exc: The exception raised during AI service execution.
+        request_path: The request URL path for structured logging context.
 
     Returns:
         An HTTPException with status 500 and a generic detail message.
     """
-    logger.error("AI service call failed: %s", exc)
+    log_error(
+        exc,
+        context={"endpoint": "ai"},
+        logger=logger,
+        request_path=request_path,
+    )
     return HTTPException(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         detail="AI service temporarily unavailable. Please try again later.",
@@ -157,13 +136,13 @@ async def get_insights(
     Raises:
         HTTPException: 500 if the Vertex AI service call fails.
     """
-    _verify_ai_user_access(authenticated_uid, payload.user_id)
+    verify_user_access(authenticated_uid, payload.user_id, context="ai")
     user_data: dict[str, Any] = _build_user_data_payload(payload)
     try:
         service: VertexAiService = _get_vertex_service()
         ai_result: dict[str, Any] = await service.generate_insights_async(user_data)
     except Exception as exc:
-        raise _build_error_response(exc) from exc
+        raise _build_error_response(exc, request_path="/api/v1/ai/insights") from exc
     return _build_insights_response(payload.user_id, ai_result)
 
 
@@ -191,7 +170,7 @@ async def chat(
     Raises:
         HTTPException: 500 if the Vertex AI service call fails.
     """
-    _verify_ai_user_access(authenticated_uid, payload.user_id)
+    verify_user_access(authenticated_uid, payload.user_id, context="ai")
     user_data: dict[str, Any] = _build_user_data_payload(payload)
     conversation_history: list[dict[str, str]] = [
         msg.model_dump() for msg in payload.conversation_history
@@ -202,7 +181,7 @@ async def chat(
             user_data, conversation_history, payload.message
         )
     except Exception as exc:
-        raise _build_error_response(exc) from exc
+        raise _build_error_response(exc, request_path="/api/v1/ai/chat") from exc
 
     return ChatResponse(
         user_id=payload.user_id,

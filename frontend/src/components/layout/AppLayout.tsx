@@ -17,9 +17,9 @@ const NAV_SECTIONS = [
 
 function AppHeader(): React.JSX.Element {
   return (
-    <header role="banner" className="app-header">
+    <header className="app-header">
       <div className="app-header-inner">
-        <nav role="navigation" aria-label="Main navigation">
+        <nav aria-label="Main navigation">
           <a href="/" className="app-logo" aria-label={`${APP_CONSTANTS.APP_NAME} home`}>
             {APP_CONSTANTS.APP_NAME}
           </a>
@@ -42,7 +42,7 @@ function AppHeader(): React.JSX.Element {
 
 function AppFooter(): React.JSX.Element {
   return (
-    <footer role="contentinfo" className="app-footer">
+    <footer className="app-footer">
       <p>&copy; {new Date().getFullYear()} {APP_CONSTANTS.APP_NAME}</p>
     </footer>
   );
@@ -53,7 +53,7 @@ export function AppLayout({ children }: AppLayoutProps): React.JSX.Element {
     <div className="app-container">
       <a className="skip-link" href="#app-main">Skip to content</a>
       <AppHeader />
-      <main role="main" id="app-main" className="app-main" tabIndex={-1}>
+      <main id="app-main" className="app-main" tabIndex={-1}>
         {children}
       </main>
       <AppFooter />

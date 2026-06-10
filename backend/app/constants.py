@@ -13,6 +13,8 @@ class AppConstants:
 
     __slots__ = ()
 
+    ANONYMOUS_ID_PREFIX: Final[str] = "anon-"
+
     FIREBASE_COLLECTION_CARBON_LOGS: Final[str] = "carbon_logs"
     FIREBASE_QUERY_LIMIT: Final[int] = 100
 

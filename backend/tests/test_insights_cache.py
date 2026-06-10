@@ -192,6 +192,8 @@ class TestSetCachedInsight:
         self, mock_get_db: MagicMock
     ) -> None:
         """Verify the cached document contains cached_at, insight, and cache_key_prefix."""
+        from firebase_admin import firestore
+
         mock_db = MagicMock()
         mock_get_db.return_value = mock_db
 
@@ -205,6 +207,7 @@ class TestSetCachedInsight:
         )
         doc_data = set_call_args[0][0]
         assert "cached_at" in doc_data
+        assert doc_data["cached_at"] is firestore.SERVER_TIMESTAMP
         assert "insight" in doc_data
         assert "cache_key_prefix" in doc_data
         assert doc_data["insight"] == insight

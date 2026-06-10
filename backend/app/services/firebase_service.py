@@ -52,7 +52,7 @@ def _build_log_document(
         "total_co2e_kg": total_co2e_kg,
         "results": results,
         "calculation_date": calculation_date,
-        "created_at": datetime.now(tz=timezone.utc).isoformat(),
+        "created_at": firestore.SERVER_TIMESTAMP,
     }
 
 
@@ -113,9 +113,7 @@ class FirebaseService:
         Returns:
             A list of carbon log document dictionaries, newest first.
         """
-        cutoff: str = (
-            datetime.now(tz=timezone.utc) - timedelta(days=period_days)
-        ).isoformat()
+        cutoff: datetime = datetime.now(tz=timezone.utc) - timedelta(days=period_days)
         docs = (
             self._client.collection(AppConstants.FIREBASE_COLLECTION_CARBON_LOGS)
             .where("user_id", "==", user_id)

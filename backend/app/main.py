@@ -12,6 +12,7 @@ from app.middleware.rate_limiter import RateLimiterMiddleware
 from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.routes.footprint import router as footprint_router
 from app.routes.ai_routes import router as ai_router
+from app.routes.admin import router as admin_router
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +47,7 @@ def _configure_security_headers(application: FastAPI) -> None:
 
 
 def _configure_rate_limiter(application: FastAPI) -> None:
-    """Apply in-memory rate limiter middleware."""
+    """Apply Firestore-backed rate limiter with in-memory fallback."""
     application.add_middleware(RateLimiterMiddleware)
 
 
@@ -69,6 +70,11 @@ def _register_ai_routes(application: FastAPI) -> None:
     application.include_router(ai_router)
 
 
+def _register_admin_routes(application: FastAPI) -> None:
+    """Register the admin operations router."""
+    application.include_router(admin_router)
+
+
 def create_app() -> FastAPI:
     """Factory function that constructs and configures the FastAPI application."""
     application: FastAPI = FastAPI(
@@ -87,6 +93,7 @@ def create_app() -> FastAPI:
     _register_health_route(application)
     _register_footprint_routes(application)
     _register_ai_routes(application)
+    _register_admin_routes(application)
     return application
 
 

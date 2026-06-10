@@ -4,6 +4,7 @@ Tests cover:
 - Requests under the rate limit are forwarded normally
 - Requests exceeding the rate limit receive 429 responses
 - AI endpoints receive stricter rate limiting (10 req/min)
+- FirestoreRateLimiter falls back to in-memory when Firestore unavailable
 """
 
 import pytest
@@ -11,7 +12,10 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.constants import AppConstants
-from app.middleware.rate_limiter import RateLimiterMiddleware
+from app.middleware.rate_limiter import (
+    InMemoryRateLimiterMiddleware,
+    RateLimiterMiddleware,
+)
 
 
 @pytest.fixture(name="rate_limit_app")
@@ -27,7 +31,7 @@ def fixture_rate_limit_app() -> FastAPI:
     async def ai_route() -> dict:
         return {"status": "ok"}
 
-    app.add_middleware(RateLimiterMiddleware)
+    app.add_middleware(InMemoryRateLimiterMiddleware)
     return app
 
 
@@ -83,3 +87,54 @@ class TestRateLimiterAIEndpoints:
         response = rate_limit_client.post("/api/v1/ai/insights")
         assert response.status_code == 429
         assert "Rate limit exceeded" in response.json()["detail"]
+
+
+class TestFirestoreRateLimiterFallback:
+    """Tests for FirestoreRateLimiter falling back to in-memory when Firestore unavailable."""
+
+    @pytest.mark.unit
+    def test_firestore_rate_limiter_falls_back_to_memory(self) -> None:
+        """Verify FirestoreRateLimiter uses in-memory fallback when Firestore unavailable."""
+        from app.middleware.rate_limiter import FirestoreRateLimiter
+
+        limiter = FirestoreRateLimiter()
+        # Firestore should not be available in test env, so this should
+        # fall back to in-memory and still work correctly
+        import asyncio
+
+        count = asyncio.run(limiter.check_and_increment("test-ip-1"))
+        assert count == 1
+
+        count = asyncio.run(limiter.check_and_increment("test-ip-1"))
+        assert count == 2
+
+    @pytest.mark.unit
+    def test_firestore_rate_limiter_different_ips_tracked_separately(self) -> None:
+        """Verify different IPs are tracked independently in fallback mode."""
+        from app.middleware.rate_limiter import FirestoreRateLimiter
+
+        limiter = FirestoreRateLimiter()
+        import asyncio
+
+        count1 = asyncio.run(limiter.check_and_increment("test-ip-a"))
+        count2 = asyncio.run(limiter.check_and_increment("test-ip-b"))
+        assert count1 == 1
+        assert count2 == 1
+
+
+class TestFirestoreRateLimiterMiddleware:
+    """Tests for the new RateLimiterMiddleware that uses FirestoreRateLimiter."""
+
+    @pytest.mark.unit
+    def test_firestore_middleware_allows_first_request(self) -> None:
+        """Verify the Firestore-backed middleware allows the first request."""
+        test_app = FastAPI()
+
+        @test_app.get("/test")
+        async def test_route() -> dict:
+            return {"status": "ok"}
+
+        test_app.add_middleware(RateLimiterMiddleware)
+        client = TestClient(test_app)
+        response = client.get("/test")
+        assert response.status_code == 200

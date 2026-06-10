@@ -430,8 +430,10 @@ class TestFootprintEndpointHappyPath:
         self,
         client: TestClient,
         valid_transport_payload: dict,
+        authenticated_user: str,
     ) -> None:
         """Verify transport entry returns 201 with correct response structure."""
+        valid_transport_payload["user_id"] = authenticated_user
         mock_service = MagicMock()
         mock_service.write_carbon_log.return_value = "mock-doc-id"
         app.dependency_overrides[get_firebase_service] = _override_firebase_service(
@@ -455,8 +457,10 @@ class TestFootprintEndpointHappyPath:
         self,
         client: TestClient,
         valid_energy_payload: dict,
+        authenticated_user: str,
     ) -> None:
         """Verify energy entry returns 201 with correct emission calculation."""
+        valid_energy_payload["user_id"] = authenticated_user
         mock_service = MagicMock()
         mock_service.write_carbon_log.return_value = "mock-doc-energy"
         app.dependency_overrides[get_firebase_service] = _override_firebase_service(
@@ -475,8 +479,10 @@ class TestFootprintEndpointHappyPath:
         self,
         client: TestClient,
         valid_diet_payload: dict,
+        authenticated_user: str,
     ) -> None:
         """Verify diet entry returns 201 with correct emission calculation."""
+        valid_diet_payload["user_id"] = authenticated_user
         mock_service = MagicMock()
         mock_service.write_carbon_log.return_value = "mock-doc-diet"
         app.dependency_overrides[get_firebase_service] = _override_firebase_service(
@@ -495,8 +501,10 @@ class TestFootprintEndpointHappyPath:
         self,
         client: TestClient,
         multi_entry_payload: dict,
+        authenticated_user: str,
     ) -> None:
         """Verify multi-category payload returns 201 with aggregated total."""
+        multi_entry_payload["user_id"] = authenticated_user
         mock_service = MagicMock()
         mock_service.write_carbon_log.return_value = "mock-doc-multi"
         app.dependency_overrides[get_firebase_service] = _override_firebase_service(
@@ -519,6 +527,7 @@ class TestFootprintEndpointHappyPath:
     ) -> None:
         """Verify authenticated UID always overrides the payload user_id for security."""
         app.dependency_overrides[get_current_user] = _override_auth("auth-user-999")
+        valid_transport_payload["user_id"] = "auth-user-999"
         mock_service = MagicMock()
         mock_service.write_carbon_log.return_value = "mock-doc-verify"
         app.dependency_overrides[get_firebase_service] = _override_firebase_service(
@@ -663,8 +672,10 @@ class TestFootprintEndpointDatabaseError:
         self,
         client: TestClient,
         valid_transport_payload: dict,
+        authenticated_user: str,
     ) -> None:
         """Verify simulated database timeout returns 500 with error detail."""
+        valid_transport_payload["user_id"] = authenticated_user
         mock_service = MagicMock()
         mock_service.write_carbon_log.side_effect = TimeoutError(
             "Firestore connection timed out"
@@ -686,8 +697,10 @@ class TestFootprintEndpointDatabaseError:
         self,
         client: TestClient,
         valid_transport_payload: dict,
+        authenticated_user: str,
     ) -> None:
         """Verify generic database exception returns 500 with error detail."""
+        valid_transport_payload["user_id"] = authenticated_user
         mock_service = MagicMock()
         mock_service.write_carbon_log.side_effect = RuntimeError(
             "Unexpected Firestore error"
@@ -709,8 +722,10 @@ class TestFootprintEndpointDatabaseError:
         self,
         client: TestClient,
         valid_transport_payload: dict,
+        authenticated_user: str,
     ) -> None:
         """Verify permission denied error returns 500 with error detail."""
+        valid_transport_payload["user_id"] = authenticated_user
         mock_service = MagicMock()
         mock_service.write_carbon_log.side_effect = PermissionError(
             "Firestore permission denied"
@@ -827,19 +842,38 @@ class TestFootprintHistoryEndpoint:
             app.dependency_overrides.pop(get_firebase_service, None)
 
     @pytest.mark.integration
-    def test_history_without_auth_allows_anonymous_access(
+    def test_history_without_auth_blocks_cross_user_access(
         self, client: TestClient
     ) -> None:
-        """Verify anonymous (no auth) users can access history — anon IDs bypass ownership check."""
+        """Verify anonymous (no auth) users cannot access other user_id's data."""
         mock_service = MagicMock()
         mock_service.get_user_logs.return_value = []
         app.dependency_overrides[get_firebase_service] = _override_firebase_service(
             mock_service
         )
         try:
+            # Anonymous user gets a random anon-xxx ID that won't match "user-001"
             response = client.get("/api/v1/footprint/history/user-001")
+            assert response.status_code == 403
+            assert "Access denied" in response.json()["detail"]
+        finally:
+            app.dependency_overrides.pop(get_firebase_service, None)
+
+    @pytest.mark.integration
+    def test_history_anonymous_user_can_access_own_id(self, client: TestClient) -> None:
+        """Verify anonymous users can access data matching their own anonymous ID."""
+        anon_id = "anon-abc123def456"
+        app.dependency_overrides[get_current_user] = _override_auth(anon_id)
+        mock_service = MagicMock()
+        mock_service.get_user_logs.return_value = []
+        app.dependency_overrides[get_firebase_service] = _override_firebase_service(
+            mock_service
+        )
+        try:
+            response = client.get(f"/api/v1/footprint/history/{anon_id}")
             assert response.status_code == 200
         finally:
+            app.dependency_overrides.pop(get_current_user, None)
             app.dependency_overrides.pop(get_firebase_service, None)
 
     @pytest.mark.integration
@@ -941,19 +975,38 @@ class TestFootprintSummaryEndpoint:
             app.dependency_overrides.pop(get_firebase_service, None)
 
     @pytest.mark.integration
-    def test_summary_without_auth_allows_anonymous_access(
+    def test_summary_without_auth_blocks_cross_user_access(
         self, client: TestClient
     ) -> None:
-        """Verify anonymous (no auth) users can access summary — anon IDs bypass ownership check."""
+        """Verify anonymous (no auth) users cannot access other user_id's summary."""
         mock_service = MagicMock()
         mock_service.get_user_logs.return_value = []
         app.dependency_overrides[get_firebase_service] = _override_firebase_service(
             mock_service
         )
         try:
+            # Anonymous user gets a random anon-xxx ID that won't match "user-001"
             response = client.get("/api/v1/footprint/summary/user-001")
+            assert response.status_code == 403
+            assert "Access denied" in response.json()["detail"]
+        finally:
+            app.dependency_overrides.pop(get_firebase_service, None)
+
+    @pytest.mark.integration
+    def test_summary_anonymous_user_can_access_own_id(self, client: TestClient) -> None:
+        """Verify anonymous users can access summary matching their own anonymous ID."""
+        anon_id = "anon-abc123def456"
+        app.dependency_overrides[get_current_user] = _override_auth(anon_id)
+        mock_service = MagicMock()
+        mock_service.get_user_logs.return_value = []
+        app.dependency_overrides[get_firebase_service] = _override_firebase_service(
+            mock_service
+        )
+        try:
+            response = client.get(f"/api/v1/footprint/summary/{anon_id}")
             assert response.status_code == 200
         finally:
+            app.dependency_overrides.pop(get_current_user, None)
             app.dependency_overrides.pop(get_firebase_service, None)
 
     @pytest.mark.integration

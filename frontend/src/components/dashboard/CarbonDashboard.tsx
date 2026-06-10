@@ -425,7 +425,7 @@ export function CarbonDashboard({ userId }: CarbonDashboardProps): React.JSX.Ele
           />
 
           {/* Conversational Chat — always visible */}
-          <div className="dashboard-section chat-section">
+          <div className="dashboard-section chat-section" role="region" aria-label="AI Chat Coach">
             <ChatCoach
               userId={userId}
               totalCo2eKg={totalCo2e}
@@ -435,7 +435,7 @@ export function CarbonDashboard({ userId }: CarbonDashboardProps): React.JSX.Ele
           </div>
 
           {/* Emission Goals — always visible */}
-          <div className="dashboard-section goals-section">
+          <div className="dashboard-section goals-section" role="region" aria-label="Emission Goals">
             <EmissionGoals
               totalCo2eKg={totalCo2e}
               periodDays={periodDays}

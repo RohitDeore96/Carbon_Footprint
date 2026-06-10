@@ -114,8 +114,11 @@ export function ChatCoach({
       conversation_history: conversationHistory,
     }, controller.signal);
 
-    // Ignore result if request was aborted
-    if (controller.signal.aborted) return;
+    // Ignore result if request was aborted (reset loading to avoid stuck spinner)
+    if (controller.signal.aborted) {
+      setIsLoading(false);
+      return;
+    }
 
     setIsLoading(false);
     if (result.success) {

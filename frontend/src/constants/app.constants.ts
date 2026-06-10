@@ -9,7 +9,9 @@
 export const APP_CONSTANTS = {
   APP_NAME: 'Carbon Footprint Awareness Platform',
   APP_VERSION: '1.0.0',
-  API_BASE_URL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000',
+  API_BASE_URL:
+    import.meta.env.VITE_API_BASE_URL ||
+    (import.meta.env.MODE === 'production' ? '' : 'http://localhost:8000'),
   GEMINI_MODEL_NAME: 'gemini-2.5-flash',
 
   // ARIA labels (centralised for consistency)

@@ -72,7 +72,8 @@ export function DataExport({ logs }: DataExportProps): React.JSX.Element {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    // Delay revocation to ensure the browser has initiated the download
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }, [logs, hasLogs]);
 
   return (

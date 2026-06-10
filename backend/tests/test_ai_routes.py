@@ -300,16 +300,20 @@ class TestInsightsEndpointHappyPath:
         mock_ai_response_dict: dict[str, Any],
     ) -> None:
         """Verify valid payload returns 200 with complete insights response."""
-        mock_service = MagicMock()
-        mock_service.generate_insights_async = AsyncMock(
-            return_value=mock_ai_response_dict
-        )
-        mock_get_service.return_value = mock_service
-        response = client.post("/api/v1/ai/insights", json=valid_insights_payload)
-        assert response.status_code == 200
-        data: dict[str, Any] = response.json()
-        assert data["user_id"] == "test-user-ai-001"
-        assert data["model_used"] == AppConstants.VERTEX_AI_MODEL_NAME
+        app.dependency_overrides[get_current_user] = _override_auth("test-user-ai-001")
+        try:
+            mock_service = MagicMock()
+            mock_service.generate_insights_async = AsyncMock(
+                return_value=mock_ai_response_dict
+            )
+            mock_get_service.return_value = mock_service
+            response = client.post("/api/v1/ai/insights", json=valid_insights_payload)
+            assert response.status_code == 200
+            data: dict[str, Any] = response.json()
+            assert data["user_id"] == "test-user-ai-001"
+            assert data["model_used"] == AppConstants.VERTEX_AI_MODEL_NAME
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
 
     @pytest.mark.integration
     @patch("app.routes.ai_routes._get_vertex_service")
@@ -321,15 +325,19 @@ class TestInsightsEndpointHappyPath:
         mock_ai_response_dict: dict[str, Any],
     ) -> None:
         """Verify the response includes the insight field from the AI model."""
-        mock_service = MagicMock()
-        mock_service.generate_insights_async = AsyncMock(
-            return_value=mock_ai_response_dict
-        )
-        mock_get_service.return_value = mock_service
-        response = client.post("/api/v1/ai/insights", json=valid_insights_payload)
-        data: dict[str, Any] = response.json()
-        assert "insight" in data
-        assert len(data["insight"]) > 0
+        app.dependency_overrides[get_current_user] = _override_auth("test-user-ai-001")
+        try:
+            mock_service = MagicMock()
+            mock_service.generate_insights_async = AsyncMock(
+                return_value=mock_ai_response_dict
+            )
+            mock_get_service.return_value = mock_service
+            response = client.post("/api/v1/ai/insights", json=valid_insights_payload)
+            data: dict[str, Any] = response.json()
+            assert "insight" in data
+            assert len(data["insight"]) > 0
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
 
     @pytest.mark.integration
     @patch("app.routes.ai_routes._get_vertex_service")
@@ -341,14 +349,18 @@ class TestInsightsEndpointHappyPath:
         mock_ai_response_dict: dict[str, Any],
     ) -> None:
         """Verify the response includes exactly 3 actionable steps."""
-        mock_service = MagicMock()
-        mock_service.generate_insights_async = AsyncMock(
-            return_value=mock_ai_response_dict
-        )
-        mock_get_service.return_value = mock_service
-        response = client.post("/api/v1/ai/insights", json=valid_insights_payload)
-        data: dict[str, Any] = response.json()
-        assert len(data["actionable_steps"]) == 3
+        app.dependency_overrides[get_current_user] = _override_auth("test-user-ai-001")
+        try:
+            mock_service = MagicMock()
+            mock_service.generate_insights_async = AsyncMock(
+                return_value=mock_ai_response_dict
+            )
+            mock_get_service.return_value = mock_service
+            response = client.post("/api/v1/ai/insights", json=valid_insights_payload)
+            data: dict[str, Any] = response.json()
+            assert len(data["actionable_steps"]) == 3
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
 
     @pytest.mark.integration
     @patch("app.routes.ai_routes._get_vertex_service")
@@ -360,15 +372,19 @@ class TestInsightsEndpointHappyPath:
         mock_ai_response_dict: dict[str, Any],
     ) -> None:
         """Verify the response includes the equivalent_impact comparison."""
-        mock_service = MagicMock()
-        mock_service.generate_insights_async = AsyncMock(
-            return_value=mock_ai_response_dict
-        )
-        mock_get_service.return_value = mock_service
-        response = client.post("/api/v1/ai/insights", json=valid_insights_payload)
-        data: dict[str, Any] = response.json()
-        assert "equivalent_impact" in data
-        assert len(data["equivalent_impact"]) > 0
+        app.dependency_overrides[get_current_user] = _override_auth("test-user-ai-001")
+        try:
+            mock_service = MagicMock()
+            mock_service.generate_insights_async = AsyncMock(
+                return_value=mock_ai_response_dict
+            )
+            mock_get_service.return_value = mock_service
+            response = client.post("/api/v1/ai/insights", json=valid_insights_payload)
+            data: dict[str, Any] = response.json()
+            assert "equivalent_impact" in data
+            assert len(data["equivalent_impact"]) > 0
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
 
     @pytest.mark.integration
     @patch("app.routes.ai_routes._get_vertex_service")
@@ -380,13 +396,17 @@ class TestInsightsEndpointHappyPath:
         mock_ai_response_dict: dict[str, Any],
     ) -> None:
         """Verify the VertexAiService.generate_insights_async is called exactly once."""
-        mock_service = MagicMock()
-        mock_service.generate_insights_async = AsyncMock(
-            return_value=mock_ai_response_dict
-        )
-        mock_get_service.return_value = mock_service
-        client.post("/api/v1/ai/insights", json=valid_insights_payload)
-        mock_service.generate_insights_async.assert_called_once()
+        app.dependency_overrides[get_current_user] = _override_auth("test-user-ai-001")
+        try:
+            mock_service = MagicMock()
+            mock_service.generate_insights_async = AsyncMock(
+                return_value=mock_ai_response_dict
+            )
+            mock_get_service.return_value = mock_service
+            client.post("/api/v1/ai/insights", json=valid_insights_payload)
+            mock_service.generate_insights_async.assert_called_once()
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
 
 
 # ===========================================================================
@@ -406,14 +426,18 @@ class TestInsightsEndpointApiFailure:
         valid_insights_payload: dict[str, Any],
     ) -> None:
         """Verify simulated quota exceeded returns 500 with error detail."""
-        mock_service = MagicMock()
-        mock_service.generate_insights_async = AsyncMock(
-            side_effect=Exception("429 Resource exhausted: quota exceeded")
-        )
-        mock_get_service.return_value = mock_service
-        response = client.post("/api/v1/ai/insights", json=valid_insights_payload)
-        assert response.status_code == 500
-        assert "temporarily unavailable" in response.json()["detail"]
+        app.dependency_overrides[get_current_user] = _override_auth("test-user-ai-001")
+        try:
+            mock_service = MagicMock()
+            mock_service.generate_insights_async = AsyncMock(
+                side_effect=Exception("429 Resource exhausted: quota exceeded")
+            )
+            mock_get_service.return_value = mock_service
+            response = client.post("/api/v1/ai/insights", json=valid_insights_payload)
+            assert response.status_code == 500
+            assert "temporarily unavailable" in response.json()["detail"]
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
 
     @pytest.mark.integration
     @patch("app.routes.ai_routes._get_vertex_service")
@@ -424,14 +448,18 @@ class TestInsightsEndpointApiFailure:
         valid_insights_payload: dict[str, Any],
     ) -> None:
         """Verify simulated network timeout returns 500 with error detail."""
-        mock_service = MagicMock()
-        mock_service.generate_insights_async = AsyncMock(
-            side_effect=TimeoutError("Connection timed out after 30s")
-        )
-        mock_get_service.return_value = mock_service
-        response = client.post("/api/v1/ai/insights", json=valid_insights_payload)
-        assert response.status_code == 500
-        assert "temporarily unavailable" in response.json()["detail"]
+        app.dependency_overrides[get_current_user] = _override_auth("test-user-ai-001")
+        try:
+            mock_service = MagicMock()
+            mock_service.generate_insights_async = AsyncMock(
+                side_effect=TimeoutError("Connection timed out after 30s")
+            )
+            mock_get_service.return_value = mock_service
+            response = client.post("/api/v1/ai/insights", json=valid_insights_payload)
+            assert response.status_code == 500
+            assert "temporarily unavailable" in response.json()["detail"]
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
 
     @pytest.mark.integration
     @patch("app.routes.ai_routes._get_vertex_service")
@@ -442,14 +470,18 @@ class TestInsightsEndpointApiFailure:
         valid_insights_payload: dict[str, Any],
     ) -> None:
         """Verify malformed AI response triggers 500 with error detail."""
-        mock_service = MagicMock()
-        mock_service.generate_insights_async = AsyncMock(
-            side_effect=ValueError("Invalid JSON from model")
-        )
-        mock_get_service.return_value = mock_service
-        response = client.post("/api/v1/ai/insights", json=valid_insights_payload)
-        assert response.status_code == 500
-        assert "temporarily unavailable" in response.json()["detail"]
+        app.dependency_overrides[get_current_user] = _override_auth("test-user-ai-001")
+        try:
+            mock_service = MagicMock()
+            mock_service.generate_insights_async = AsyncMock(
+                side_effect=ValueError("Invalid JSON from model")
+            )
+            mock_get_service.return_value = mock_service
+            response = client.post("/api/v1/ai/insights", json=valid_insights_payload)
+            assert response.status_code == 500
+            assert "temporarily unavailable" in response.json()["detail"]
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
 
 
 # ===========================================================================
@@ -718,20 +750,26 @@ class TestChatEndpointHappyPath:
         valid_chat_payload: dict[str, Any],
     ) -> None:
         """Verify valid chat payload returns 200 with coaching response."""
-        mock_service = MagicMock()
-        mock_service.chat_async = AsyncMock(
-            return_value={
-                "response": "Try switching to public transit for 2 days a week.",
-                "suggestions": [
-                    "What about cycling?",
-                    "Tell me about electric vehicles.",
-                ],
-                "model_used": AppConstants.VERTEX_AI_MODEL_NAME,
-            }
+        app.dependency_overrides[get_current_user] = _override_auth(
+            "test-user-chat-001"
         )
-        mock_get_service.return_value = mock_service
-        response = client.post("/api/v1/ai/chat", json=valid_chat_payload)
-        assert response.status_code == 200
+        try:
+            mock_service = MagicMock()
+            mock_service.chat_async = AsyncMock(
+                return_value={
+                    "response": "Try switching to public transit for 2 days a week.",
+                    "suggestions": [
+                        "What about cycling?",
+                        "Tell me about electric vehicles.",
+                    ],
+                    "model_used": AppConstants.VERTEX_AI_MODEL_NAME,
+                }
+            )
+            mock_get_service.return_value = mock_service
+            response = client.post("/api/v1/ai/chat", json=valid_chat_payload)
+            assert response.status_code == 200
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
 
     @pytest.mark.integration
     @patch("app.routes.ai_routes._get_vertex_service")
@@ -742,21 +780,27 @@ class TestChatEndpointHappyPath:
         valid_chat_payload: dict[str, Any],
     ) -> None:
         """Verify chat response includes response, suggestions, and model_used."""
-        mock_service = MagicMock()
-        mock_service.chat_async = AsyncMock(
-            return_value={
-                "response": "Try switching to public transit.",
-                "suggestions": ["What about cycling?"],
-                "model_used": AppConstants.VERTEX_AI_MODEL_NAME,
-            }
+        app.dependency_overrides[get_current_user] = _override_auth(
+            "test-user-chat-001"
         )
-        mock_get_service.return_value = mock_service
-        response = client.post("/api/v1/ai/chat", json=valid_chat_payload)
-        data: dict[str, Any] = response.json()
-        assert "response" in data
-        assert "suggestions" in data
-        assert "model_used" in data
-        assert data["user_id"] == "test-user-chat-001"
+        try:
+            mock_service = MagicMock()
+            mock_service.chat_async = AsyncMock(
+                return_value={
+                    "response": "Try switching to public transit.",
+                    "suggestions": ["What about cycling?"],
+                    "model_used": AppConstants.VERTEX_AI_MODEL_NAME,
+                }
+            )
+            mock_get_service.return_value = mock_service
+            response = client.post("/api/v1/ai/chat", json=valid_chat_payload)
+            data: dict[str, Any] = response.json()
+            assert "response" in data
+            assert "suggestions" in data
+            assert "model_used" in data
+            assert data["user_id"] == "test-user-chat-001"
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
 
     @pytest.mark.integration
     @patch("app.routes.ai_routes._get_vertex_service")
@@ -767,12 +811,20 @@ class TestChatEndpointHappyPath:
         valid_chat_payload: dict[str, Any],
     ) -> None:
         """Verify chat service failure returns 500 with generic error."""
-        mock_service = MagicMock()
-        mock_service.chat_async = AsyncMock(side_effect=Exception("Gemini API timeout"))
-        mock_get_service.return_value = mock_service
-        response = client.post("/api/v1/ai/chat", json=valid_chat_payload)
-        assert response.status_code == 500
-        assert "temporarily unavailable" in response.json()["detail"]
+        app.dependency_overrides[get_current_user] = _override_auth(
+            "test-user-chat-001"
+        )
+        try:
+            mock_service = MagicMock()
+            mock_service.chat_async = AsyncMock(
+                side_effect=Exception("Gemini API timeout")
+            )
+            mock_get_service.return_value = mock_service
+            response = client.post("/api/v1/ai/chat", json=valid_chat_payload)
+            assert response.status_code == 500
+            assert "temporarily unavailable" in response.json()["detail"]
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
 
 
 class TestChatEndpointValidation:
@@ -886,22 +938,62 @@ class TestAiRouteOwnership:
 
     @pytest.mark.integration
     @patch("app.routes.ai_routes._get_vertex_service")
-    def test_insights_anonymous_user_allowed(
+    def test_insights_anonymous_user_cross_user_blocked(
         self,
         mock_get_service: MagicMock,
         client: TestClient,
         valid_insights_payload: dict[str, Any],
-        mock_ai_response_dict: dict[str, Any],
     ) -> None:
-        """Verify anonymous users can request AI insights for any user_id."""
+        """Verify anonymous users cannot request AI insights for a different user_id."""
         app.dependency_overrides[get_current_user] = _override_auth("anon-abc123def456")
         try:
+            # payload has user_id "test-user-ai-001" which differs from "anon-abc123def456"
+            mock_service = MagicMock()
+            mock_service.generate_insights_async = AsyncMock(
+                return_value={
+                    "insight": "test",
+                    "equivalent_impact": "test",
+                    "actionable_steps": ["step 1"],
+                }
+            )
+            mock_get_service.return_value = mock_service
+            response = client.post("/api/v1/ai/insights", json=valid_insights_payload)
+            assert response.status_code == 403
+            assert "Access denied" in response.json()["detail"]
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+
+    @pytest.mark.integration
+    @patch("app.routes.ai_routes._get_vertex_service")
+    def test_insights_anonymous_user_can_access_own_id(
+        self,
+        mock_get_service: MagicMock,
+        client: TestClient,
+        mock_ai_response_dict: dict[str, Any],
+    ) -> None:
+        """Verify anonymous users can request AI insights for their own anonymous ID."""
+        anon_id = "anon-abc123def456"
+        app.dependency_overrides[get_current_user] = _override_auth(anon_id)
+        try:
+            payload = {
+                "user_id": anon_id,
+                "total_co2e_kg": 156.8,
+                "period_days": 30,
+                "emission_breakdown": [
+                    {
+                        "category": "transport",
+                        "total_co2e_kg": 85.5,
+                        "entry_count": 12,
+                        "description": "Daily car commute",
+                    }
+                ],
+            }
             mock_service = MagicMock()
             mock_service.generate_insights_async = AsyncMock(
                 return_value=mock_ai_response_dict
             )
             mock_get_service.return_value = mock_service
-            response = client.post("/api/v1/ai/insights", json=valid_insights_payload)
+            response = client.post("/api/v1/ai/insights", json=payload)
             assert response.status_code == 200
         finally:
             app.dependency_overrides.pop(get_current_user, None)

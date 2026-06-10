@@ -70,7 +70,9 @@ class TestBuildLogDocument:
 
     @pytest.mark.unit
     def test_build_log_document_contains_created_at(self) -> None:
-        """Verify the document contains a created_at ISO timestamp."""
+        """Verify the document contains a created_at field with SERVER_TIMESTAMP."""
+        from firebase_admin import firestore
+
         doc = _build_log_document(
             user_id="test-user",
             total_co2e_kg=5.25,
@@ -78,7 +80,7 @@ class TestBuildLogDocument:
             calculation_date="2026-06-08T12:00:00",
         )
         assert "created_at" in doc
-        assert isinstance(doc["created_at"], str)
+        assert doc["created_at"] is firestore.SERVER_TIMESTAMP
 
 
 class TestFirebaseServiceInit:

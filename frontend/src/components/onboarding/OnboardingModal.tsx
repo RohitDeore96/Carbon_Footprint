@@ -86,14 +86,13 @@ export default function OnboardingModal(): React.JSX.Element | null {
     return () => document.removeEventListener('keydown', handleEscape);
   }, [visible, completeOnboarding]);
 
-  // Basic focus trap
+  // Basic focus trap (Escape is handled by the dedicated effect above)
   useEffect(() => {
     if (!visible) return;
 
     function handleKeyDown(e: KeyboardEvent): void {
       if (e.key === 'Escape') {
         e.preventDefault();
-        completeOnboarding();
         return;
       }
       if (e.key !== 'Tab') return;
@@ -175,7 +174,8 @@ export default function OnboardingModal(): React.JSX.Element | null {
             <span
               key={index}
               className={`onboarding-dot ${index === currentStep ? 'onboarding-dot--active' : ''} ${index < currentStep ? 'onboarding-dot--completed' : ''}`}
-              role="presentation"
+              role="tab"
+              aria-selected={index === currentStep}
               aria-label={`Step ${index + 1} of ${STEPS.length}${index === currentStep ? ' (current)' : ''}`}
             />
           ))}
