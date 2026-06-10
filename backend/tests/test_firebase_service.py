@@ -6,7 +6,7 @@ Tests cover:
 - FirebaseService.get_user_logs
 - FirebaseService._persist_document
 - FirebaseService constructor (with and without client)
-- _initialize_firebase_app and _get_firestore_client
+- _get_firestore_client delegates to ensure_firebase_initialized
 """
 
 from unittest.mock import MagicMock, patch
@@ -17,7 +17,6 @@ from app.services.firebase_service import (
     FirebaseService,
     _build_log_document,
     _get_firestore_client,
-    _initialize_firebase_app,
 )
 
 
@@ -224,38 +223,29 @@ class TestFirebaseServiceGetUserLogs:
         assert logs == []
 
 
-class TestFirebaseAppInitialization:
-    """Unit tests for Firebase app initialization helpers."""
-
-    @pytest.mark.unit
-    @patch("app.services.firebase_service.firebase_admin")
-    def test_initialize_firebase_app_skips_if_exists(
-        self, mock_firebase_admin: MagicMock
-    ) -> None:
-        """Verify _initialize_firebase_app skips if default app exists."""
-        mock_firebase_admin.get_app.return_value = MagicMock()
-        _initialize_firebase_app()
-        mock_firebase_admin.initialize_app.assert_not_called()
-
-    @pytest.mark.unit
-    @patch("app.services.firebase_service.firebase_admin")
-    def test_initialize_firebase_app_creates_on_value_error(
-        self, mock_firebase_admin: MagicMock
-    ) -> None:
-        """Verify _initialize_firebase_app initializes when no default app exists."""
-        mock_firebase_admin.get_app.side_effect = ValueError("No default app")
-        _initialize_firebase_app()
-        mock_firebase_admin.initialize_app.assert_called_once()
+class TestGetFirestoreClient:
+    """Unit tests for _get_firestore_client using shared init helper."""
 
     @pytest.mark.unit
     @patch("app.services.firebase_service.firestore")
-    @patch("app.services.firebase_service._initialize_firebase_app")
+    @patch("app.services.firebase_service.ensure_firebase_initialized")
     def test_get_firestore_client_returns_client(
-        self, mock_init: MagicMock, mock_firestore: MagicMock
+        self, mock_ensure_init: MagicMock, mock_firestore: MagicMock
     ) -> None:
         """Verify _get_firestore_client returns a Firestore client instance."""
         mock_client = MagicMock()
         mock_firestore.client.return_value = mock_client
         result = _get_firestore_client()
         assert result is mock_client
-        mock_init.assert_called_once()
+        mock_ensure_init.assert_called_once()
+
+    @pytest.mark.unit
+    @patch("app.services.firebase_service.firestore")
+    @patch("app.services.firebase_service.ensure_firebase_initialized")
+    def test_get_firestore_client_calls_ensure_init(
+        self, mock_ensure_init: MagicMock, mock_firestore: MagicMock
+    ) -> None:
+        """Verify _get_firestore_client calls ensure_firebase_initialized before client."""
+        mock_firestore.client.return_value = MagicMock()
+        _get_firestore_client()
+        mock_ensure_init.assert_called_once()

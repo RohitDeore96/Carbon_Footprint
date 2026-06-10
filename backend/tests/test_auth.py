@@ -6,8 +6,11 @@ Tests cover:
 - get_current_user with expired Firebase ID token (401)
 - get_current_user with invalid Firebase ID token (401)
 - get_current_user with malformed token (ValueError, 401)
-- get_current_user with unexpected auth error (401)
+- get_current_user with uninitialized Firebase SDK (ValueError, 503)
+- get_current_user with connection/timeout errors (503)
+- get_current_user with unexpected auth error (503)
 - Uniqueness of generated anonymous IDs across requests
+- ensure_firebase_initialized idempotency
 """
 
 from unittest.mock import MagicMock, patch
@@ -16,7 +19,7 @@ import pytest
 from fastapi import FastAPI, Depends
 from fastapi.testclient import TestClient
 
-from app.middleware.auth import get_current_user
+from app.middleware.auth import get_current_user, ensure_firebase_initialized
 
 
 @pytest.fixture(name="auth_app")
@@ -156,21 +159,18 @@ class TestGetCurrentUserInvalidToken:
         assert response.status_code == 401
         assert "Malformed authentication token" in response.json()["detail"]
 
-
-class TestGetCurrentUserUnexpectedError:
-    """Tests for unexpected auth verification errors."""
-
     @pytest.mark.unit
     @patch("app.middleware.auth.firebase_auth")
-    def test_unexpected_error_returns_401(
+    def test_uninitialized_sdk_valueerror_returns_503(
         self, mock_firebase_auth: MagicMock, auth_client: TestClient
     ) -> None:
-        """Verify unexpected auth error returns 401 with generic message."""
-        mock_firebase_auth.verify_id_token.side_effect = RuntimeError(
-            "Unexpected error"
-        )
+        """Verify ValueError from uninitialized Firebase SDK returns 503, not 401."""
         from firebase_admin import auth as firebase_auth_exceptions
 
+        mock_firebase_auth.verify_id_token.side_effect = ValueError(
+            "The default Firebase app does not exist. "
+            "Make sure to initialize the SDK by calling initialize_app()."
+        )
         mock_firebase_auth.ExpiredIdTokenError = (
             firebase_auth_exceptions.ExpiredIdTokenError
         )
@@ -180,20 +180,24 @@ class TestGetCurrentUserUnexpectedError:
         response = auth_client.get(
             "/test-auth", headers={"Authorization": "Bearer some-token"}
         )
-        assert response.status_code == 401
-        assert "verification failed" in response.json()["detail"].lower()
+        assert response.status_code == 503
+        assert "not ready" in response.json()["detail"].lower()
+
+
+class TestGetCurrentUserServerErrors:
+    """Tests for server-side errors during token verification (503 responses)."""
 
     @pytest.mark.unit
     @patch("app.middleware.auth.firebase_auth")
-    def test_connection_error_returns_401(
+    def test_connection_error_returns_503(
         self, mock_firebase_auth: MagicMock, auth_client: TestClient
     ) -> None:
-        """Verify network error during token verification returns 401 with retry hint."""
+        """Verify network error during token verification returns 503."""
+        from firebase_admin import auth as firebase_auth_exceptions
+
         mock_firebase_auth.verify_id_token.side_effect = ConnectionError(
             "Failed to reach Firebase Auth service"
         )
-        from firebase_admin import auth as firebase_auth_exceptions
-
         mock_firebase_auth.ExpiredIdTokenError = (
             firebase_auth_exceptions.ExpiredIdTokenError
         )
@@ -203,20 +207,20 @@ class TestGetCurrentUserUnexpectedError:
         response = auth_client.get(
             "/test-auth", headers={"Authorization": "Bearer some-token"}
         )
-        assert response.status_code == 401
-        assert "verification failed" in response.json()["detail"].lower()
+        assert response.status_code == 503
+        assert "unavailable" in response.json()["detail"].lower()
 
     @pytest.mark.unit
     @patch("app.middleware.auth.firebase_auth")
-    def test_timeout_error_returns_401(
+    def test_timeout_error_returns_503(
         self, mock_firebase_auth: MagicMock, auth_client: TestClient
     ) -> None:
-        """Verify timeout during token verification returns 401 with retry hint."""
+        """Verify timeout during token verification returns 503."""
+        from firebase_admin import auth as firebase_auth_exceptions
+
         mock_firebase_auth.verify_id_token.side_effect = TimeoutError(
             "Firebase Auth verification timed out"
         )
-        from firebase_admin import auth as firebase_auth_exceptions
-
         mock_firebase_auth.ExpiredIdTokenError = (
             firebase_auth_exceptions.ExpiredIdTokenError
         )
@@ -226,5 +230,63 @@ class TestGetCurrentUserUnexpectedError:
         response = auth_client.get(
             "/test-auth", headers={"Authorization": "Bearer some-token"}
         )
-        assert response.status_code == 401
-        assert "verification failed" in response.json()["detail"].lower()
+        assert response.status_code == 503
+        assert "unavailable" in response.json()["detail"].lower()
+
+    @pytest.mark.unit
+    @patch("app.middleware.auth.firebase_auth")
+    def test_unexpected_error_returns_503(
+        self, mock_firebase_auth: MagicMock, auth_client: TestClient
+    ) -> None:
+        """Verify unexpected auth error returns 503 (server error, not auth)."""
+        from firebase_admin import auth as firebase_auth_exceptions
+
+        mock_firebase_auth.verify_id_token.side_effect = RuntimeError(
+            "Unexpected error"
+        )
+        mock_firebase_auth.ExpiredIdTokenError = (
+            firebase_auth_exceptions.ExpiredIdTokenError
+        )
+        mock_firebase_auth.InvalidIdTokenError = (
+            firebase_auth_exceptions.InvalidIdTokenError
+        )
+        response = auth_client.get(
+            "/test-auth", headers={"Authorization": "Bearer some-token"}
+        )
+        assert response.status_code == 503
+        assert "service error" in response.json()["detail"].lower()
+
+
+class TestEnsureFirebaseInitialized:
+    """Tests for the ensure_firebase_initialized helper."""
+
+    @pytest.mark.unit
+    @patch("app.middleware.auth.get_app")
+    def test_skips_init_if_already_initialized(self, mock_get_app: MagicMock) -> None:
+        """Verify no-op when Firebase Admin SDK is already initialized."""
+        import app.middleware.auth as auth_module
+
+        # Simulate already initialized
+        auth_module._firebase_app_initialized = True
+        ensure_firebase_initialized()
+        mock_get_app.assert_not_called()
+        # Reset for other tests
+        auth_module._firebase_app_initialized = False
+
+    @pytest.mark.unit
+    @patch("app.middleware.auth.initialize_app")
+    @patch("app.middleware.auth.get_app")
+    def test_initializes_on_first_call(
+        self, mock_get_app: MagicMock, mock_initialize_app: MagicMock
+    ) -> None:
+        """Verify SDK is initialized when get_app raises ValueError."""
+        import app.middleware.auth as auth_module
+
+        auth_module._firebase_app_initialized = False
+        mock_get_app.side_effect = ValueError("App not found")
+        ensure_firebase_initialized()
+        mock_initialize_app.assert_called_once()
+        # Should be set to True now
+        assert auth_module._firebase_app_initialized is True
+        # Reset for other tests
+        auth_module._firebase_app_initialized = False

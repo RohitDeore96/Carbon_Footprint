@@ -4,19 +4,21 @@ Provides a strictly typed interface for writing calculated emission data
 to the Firestore ``carbon_logs`` collection via ``firebase-admin``.
 """
 
-import os
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-import firebase_admin
-from firebase_admin import credentials, firestore
+from firebase_admin import firestore
 from google.cloud.firestore_v1.client import Client as FirestoreClient
 
 from app.constants import AppConstants
+from app.middleware.auth import ensure_firebase_initialized
 
 
 def _get_firestore_client() -> FirestoreClient:
     """Return the Firestore client, initializing the Firebase app if needed.
+
+    Uses the shared ``ensure_firebase_initialized`` helper so the SDK
+    is always ready before creating a Firestore client.
 
     Returns:
         A Firestore client instance bound to the default Firebase app.
@@ -24,27 +26,8 @@ def _get_firestore_client() -> FirestoreClient:
     Raises:
         firebase_admin.exceptions.FirebaseError: If initialization fails.
     """
-    _initialize_firebase_app()
+    ensure_firebase_initialized()
     return firestore.client()
-
-
-def _initialize_firebase_app() -> None:
-    """Initialize the Firebase Admin SDK if no default app exists.
-
-    Uses Application Default Credentials (ADC) for authentication.
-    Explicitly sets the project ID so token verification works on
-    Cloud Run and other environments where ADC alone may not
-    provide it.
-    Skips initialization if the default app is already registered.
-    """
-    try:
-        firebase_admin.get_app()
-    except ValueError:
-        options = firebase_admin.AppOptions(
-            credential=credentials.ApplicationDefault(),
-            projectId=os.environ.get("GOOGLE_CLOUD_PROJECT", "carbon-footprint-12"),
-        )
-        firebase_admin.initialize_app(options=options)
 
 
 def _build_log_document(

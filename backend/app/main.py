@@ -1,13 +1,32 @@
 """Main FastAPI application entry point for the Carbon Footprint Awareness Platform."""
 
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.constants import AppConstants
+from app.middleware.auth import ensure_firebase_initialized
 from app.middleware.rate_limiter import RateLimiterMiddleware
 from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.routes.footprint import router as footprint_router
 from app.routes.ai_routes import router as ai_router
+
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    """Application lifespan: initialize services on startup, cleanup on shutdown."""
+    # Startup: Initialize Firebase Admin SDK eagerly so that token
+    # verification works on the very first authenticated request.
+    logger.info("Initializing Firebase Admin SDK at startup...")
+    ensure_firebase_initialized()
+    logger.info("Application startup complete")
+    yield
+    # Shutdown: no special cleanup needed
+    logger.info("Application shutdown")
 
 
 def _configure_cors(application: FastAPI) -> None:
@@ -60,6 +79,7 @@ def create_app() -> FastAPI:
             "Supports transport, energy, diet, and consumption categories."
         ),
         version="1.0.0",
+        lifespan=lifespan,
     )
     _configure_cors(application)
     _configure_security_headers(application)

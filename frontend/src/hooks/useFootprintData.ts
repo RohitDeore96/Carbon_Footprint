@@ -30,7 +30,10 @@ export function useFootprintData(userId: string): {
           setHistoryError('Session expired. Please refresh the page to re-authenticate.');
         } else if (errorCode === 403) {
           setHistoryError('Access denied. You can only view your own activity history.');
+        } else if (errorCode === 429) {
+          setHistoryError('Too many requests. Please wait a moment and try again.');
         } else {
+          // 500, 503, network, and other errors — server-side issue, not auth
           setHistoryError('Failed to load activity history. Please refresh the page.');
         }
       }

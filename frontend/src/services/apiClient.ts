@@ -100,7 +100,7 @@ export interface InsightsResponse {
 // Typed Error State
 // ---------------------------------------------------------------------------
 
-export type ApiErrorCode = 401 | 403 | 422 | 429 | 500 | 'network' | 'unknown';
+export type ApiErrorCode = 401 | 403 | 422 | 429 | 500 | 503 | 'network' | 'unknown';
 
 export interface ApiError {
   readonly code: ApiErrorCode;
@@ -123,6 +123,7 @@ function mapStatusToCode(status: number): ApiErrorCode {
     422: 422,
     429: 429,
     500: 500,
+    503: 503,
   };
   return knownCodes[status] ?? 'unknown';
 }
@@ -187,17 +188,20 @@ function createAxiosInstance(): AxiosInstance {
     return config;
   });
 
-  // Response interceptor: on 401, force-refresh the token and retry once
+  // Response interceptor: on 401, force-refresh the token and retry once.
+  // On 503 (service unavailable), retry once with a short delay — do NOT
+  // refresh the token since the issue is server-side, not credentials.
   instance.interceptors.response.use(
     (response) => response,
     async (error: AxiosError) => {
       const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
-      if (
-        error.response?.status === 401 &&
-        originalRequest &&
-        !originalRequest._retry
-      ) {
-        originalRequest._retry = true;
+      if (!originalRequest || originalRequest._retry) {
+        return Promise.reject(error);
+      }
+      originalRequest._retry = true;
+
+      if (error.response?.status === 401) {
+        // Auth error — try refreshing the Firebase ID token
         try {
           const auth = getAuth();
           const user = auth.currentUser;
@@ -211,6 +215,10 @@ function createAxiosInstance(): AxiosInstance {
         } catch {
           // Token refresh failed — let the error propagate
         }
+      } else if (error.response?.status === 503) {
+        // Service unavailable — retry once after a short delay (server-side issue)
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        return instance(originalRequest);
       }
       return Promise.reject(error);
     },
