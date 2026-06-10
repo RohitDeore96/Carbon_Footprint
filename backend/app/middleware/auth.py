@@ -33,18 +33,20 @@ async def get_current_user(
         The Firebase user UID string, or a unique anonymous identifier.
 
     Raises:
-        HTTPException: 401 if the provided token is invalid or expired.
+        HTTPException: 401 if the provided token is invalid, expired, or
+            verification fails for any reason.
     """
     if credentials is None:
         anonymous_id = f"anon-{uuid.uuid4().hex[:12]}"
         logger.debug("No auth token provided; generated anonymous ID: %s", anonymous_id)
         return anonymous_id
 
+    token = credentials.credentials
     try:
-        token = credentials.credentials
         decoded = firebase_auth.verify_id_token(token)
         return decoded["uid"]
     except firebase_auth.ExpiredIdTokenError:
+        logger.warning("Firebase token expired")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication token has expired. Please refresh the page.",
@@ -55,9 +57,22 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication token. Please refresh the page.",
         ) from None
-    except Exception as exc:
-        logger.error("Unexpected auth verification error: %s", exc)
+    except ValueError as exc:
+        logger.warning("Firebase token verification failed (ValueError): %s", exc)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication verification failed. Please try again.",
+            detail="Malformed authentication token",
+        ) from None
+    except Exception as exc:
+        # Catch-all for network errors, timeout, or any unexpected failure
+        # during Firebase token verification. Return 401 so the frontend
+        # can trigger a token refresh and retry.
+        logger.error(
+            "Unexpected error during Firebase token verification: %s",
+            exc,
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication token verification failed. Please refresh and retry.",
         ) from None

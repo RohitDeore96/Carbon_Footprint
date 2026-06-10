@@ -5,6 +5,7 @@ Tests cover:
 - get_current_user with valid Firebase ID token
 - get_current_user with expired Firebase ID token (401)
 - get_current_user with invalid Firebase ID token (401)
+- get_current_user with malformed token (ValueError, 401)
 - get_current_user with unexpected auth error (401)
 - Uniqueness of generated anonymous IDs across requests
 """
@@ -131,6 +132,30 @@ class TestGetCurrentUserInvalidToken:
         assert response.status_code == 401
         assert "Invalid" in response.json()["detail"]
 
+    @pytest.mark.unit
+    @patch("app.middleware.auth.firebase_auth")
+    def test_malformed_token_returns_401(
+        self, mock_firebase_auth: MagicMock, auth_client: TestClient
+    ) -> None:
+        """Verify malformed token (ValueError) returns 401 Unauthorized."""
+        from firebase_admin import auth as firebase_auth_exceptions
+
+        mock_firebase_auth.verify_id_token.side_effect = ValueError("Malformed JWT")
+        # Set specific exception classes so the except branches resolve correctly.
+        # ValueError is not an instance of ExpiredIdTokenError or InvalidIdTokenError,
+        # so it will fall through to the ValueError handler.
+        mock_firebase_auth.ExpiredIdTokenError = (
+            firebase_auth_exceptions.ExpiredIdTokenError
+        )
+        mock_firebase_auth.InvalidIdTokenError = (
+            firebase_auth_exceptions.InvalidIdTokenError
+        )
+        response = auth_client.get(
+            "/test-auth", headers={"Authorization": "Bearer malformed-token"}
+        )
+        assert response.status_code == 401
+        assert "Malformed authentication token" in response.json()["detail"]
+
 
 class TestGetCurrentUserUnexpectedError:
     """Tests for unexpected auth verification errors."""
@@ -144,8 +169,6 @@ class TestGetCurrentUserUnexpectedError:
         mock_firebase_auth.verify_id_token.side_effect = RuntimeError(
             "Unexpected error"
         )
-        # Set to base Exception so the specific except blocks don't match,
-        # and the generic except block catches it
         from firebase_admin import auth as firebase_auth_exceptions
 
         mock_firebase_auth.ExpiredIdTokenError = (
@@ -158,4 +181,50 @@ class TestGetCurrentUserUnexpectedError:
             "/test-auth", headers={"Authorization": "Bearer some-token"}
         )
         assert response.status_code == 401
-        assert "failed" in response.json()["detail"].lower()
+        assert "verification failed" in response.json()["detail"].lower()
+
+    @pytest.mark.unit
+    @patch("app.middleware.auth.firebase_auth")
+    def test_connection_error_returns_401(
+        self, mock_firebase_auth: MagicMock, auth_client: TestClient
+    ) -> None:
+        """Verify network error during token verification returns 401 with retry hint."""
+        mock_firebase_auth.verify_id_token.side_effect = ConnectionError(
+            "Failed to reach Firebase Auth service"
+        )
+        from firebase_admin import auth as firebase_auth_exceptions
+
+        mock_firebase_auth.ExpiredIdTokenError = (
+            firebase_auth_exceptions.ExpiredIdTokenError
+        )
+        mock_firebase_auth.InvalidIdTokenError = (
+            firebase_auth_exceptions.InvalidIdTokenError
+        )
+        response = auth_client.get(
+            "/test-auth", headers={"Authorization": "Bearer some-token"}
+        )
+        assert response.status_code == 401
+        assert "verification failed" in response.json()["detail"].lower()
+
+    @pytest.mark.unit
+    @patch("app.middleware.auth.firebase_auth")
+    def test_timeout_error_returns_401(
+        self, mock_firebase_auth: MagicMock, auth_client: TestClient
+    ) -> None:
+        """Verify timeout during token verification returns 401 with retry hint."""
+        mock_firebase_auth.verify_id_token.side_effect = TimeoutError(
+            "Firebase Auth verification timed out"
+        )
+        from firebase_admin import auth as firebase_auth_exceptions
+
+        mock_firebase_auth.ExpiredIdTokenError = (
+            firebase_auth_exceptions.ExpiredIdTokenError
+        )
+        mock_firebase_auth.InvalidIdTokenError = (
+            firebase_auth_exceptions.InvalidIdTokenError
+        )
+        response = auth_client.get(
+            "/test-auth", headers={"Authorization": "Bearer some-token"}
+        )
+        assert response.status_code == 401
+        assert "verification failed" in response.json()["detail"].lower()

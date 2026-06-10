@@ -24,7 +24,15 @@ export function useFootprintData(userId: string): {
         setLogs([...result.data.logs]);
         setHistoryError(null);
       } else if (!cancelled && !result.success) {
-        setHistoryError('Failed to load activity history. Please refresh the page.');
+        // Distinguish auth errors (user should refresh) from server errors
+        const errorCode = result.error.code;
+        if (errorCode === 401) {
+          setHistoryError('Session expired. Please refresh the page to re-authenticate.');
+        } else if (errorCode === 403) {
+          setHistoryError('Access denied. You can only view your own activity history.');
+        } else {
+          setHistoryError('Failed to load activity history. Please refresh the page.');
+        }
       }
     }).catch(() => {
       if (!cancelled) {

@@ -12,7 +12,7 @@
  * is provided.
  */
 
-import axios, { AxiosError, type AxiosInstance, type AxiosResponse } from 'axios';
+import axios, { AxiosError, type AxiosInstance, type AxiosRequestConfig, type AxiosResponse } from 'axios';
 import { getAuth } from 'firebase/auth';
 import { APP_CONSTANTS } from '../constants/app.constants';
 import type { ActivityCategory } from '../types/activity';
@@ -100,7 +100,7 @@ export interface InsightsResponse {
 // Typed Error State
 // ---------------------------------------------------------------------------
 
-export type ApiErrorCode = 422 | 429 | 500 | 'network' | 'unknown';
+export type ApiErrorCode = 401 | 403 | 422 | 429 | 500 | 'network' | 'unknown';
 
 export interface ApiError {
   readonly code: ApiErrorCode;
@@ -117,7 +117,13 @@ export type ApiResult<T> =
 // ---------------------------------------------------------------------------
 
 function mapStatusToCode(status: number): ApiErrorCode {
-  const knownCodes: Record<number, ApiErrorCode> = { 422: 422, 429: 429, 500: 500 };
+  const knownCodes: Record<number, ApiErrorCode> = {
+    401: 401,
+    403: 403,
+    422: 422,
+    429: 429,
+    500: 500,
+  };
   return knownCodes[status] ?? 'unknown';
 }
 
@@ -171,7 +177,8 @@ function createAxiosInstance(): AxiosInstance {
       const auth = getAuth();
       const user = auth.currentUser;
       if (user) {
-        const token = await user.getIdToken(true); // Force refresh to avoid expired tokens
+        // Force token refresh to avoid stale/expired tokens
+        const token = await user.getIdToken(true);
         config.headers.Authorization = `Bearer ${token}`;
       }
     } catch {
@@ -179,6 +186,35 @@ function createAxiosInstance(): AxiosInstance {
     }
     return config;
   });
+
+  // Response interceptor: on 401, force-refresh the token and retry once
+  instance.interceptors.response.use(
+    (response) => response,
+    async (error: AxiosError) => {
+      const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
+      if (
+        error.response?.status === 401 &&
+        originalRequest &&
+        !originalRequest._retry
+      ) {
+        originalRequest._retry = true;
+        try {
+          const auth = getAuth();
+          const user = auth.currentUser;
+          if (user) {
+            const freshToken = await user.getIdToken(true);
+            if (originalRequest.headers) {
+              originalRequest.headers.Authorization = `Bearer ${freshToken}`;
+            }
+            return instance(originalRequest);
+          }
+        } catch {
+          // Token refresh failed — let the error propagate
+        }
+      }
+      return Promise.reject(error);
+    },
+  );
 
   return instance;
 }

@@ -254,14 +254,14 @@ describe('apiClient', () => {
       }
     });
 
-    it('returns unknown code for unrecognized HTTP status', async () => {
+    it('returns 403 code for forbidden HTTP status', async () => {
       mockPost.mockRejectedValue(createAxiosError(403));
 
       const result = await apiClient.postFootprintLog(samplePayload);
 
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error.code).toBe('unknown');
+        expect(result.error.code).toBe(403);
       }
     });
   });
@@ -557,7 +557,7 @@ describe('apiClient', () => {
     });
 
     it('maps unknown status to code "unknown"', async () => {
-      mockPost.mockRejectedValue(createAxiosError(403));
+      mockPost.mockRejectedValue(createAxiosError(418)); // I'm a teapot — truly unknown
       const result = await apiClient.postFootprintLog(samplePayload);
       if (!result.success) expect(result.error.code).toBe('unknown');
     });
