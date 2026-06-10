@@ -63,14 +63,22 @@ class TestVertexAiServiceGenerateInsightsSync:
     """Tests for VertexAiService.generate_insights synchronous path."""
 
     @patch("app.services.vertex_service.genai")
-    def test_generate_insights_without_running_loop(self, mock_genai: MagicMock) -> None:
+    def test_generate_insights_without_running_loop(
+        self, mock_genai: MagicMock
+    ) -> None:
         """Verify generate_insights works outside an event loop."""
         mock_client = MagicMock()
         with patch.dict("os.environ", {"GOOGLE_API_KEY": "test-key"}):
             service = VertexAiService(client=mock_client)
 
-        expected = {"insight": "test", "equivalent_impact": "test", "actionable_steps": ["step1"]}
+        expected = {
+            "insight": "test",
+            "equivalent_impact": "test",
+            "actionable_steps": ["step1"],
+        }
 
         with patch.object(service, "generate_insights_async", return_value=expected):
-            result = service.generate_insights({"total_co2e_kg": 10, "period_days": 30, "emission_breakdown": []})
+            result = service.generate_insights(
+                {"total_co2e_kg": 10, "period_days": 30, "emission_breakdown": []}
+            )
         assert result == expected

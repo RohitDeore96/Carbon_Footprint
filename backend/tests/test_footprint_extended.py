@@ -28,7 +28,7 @@ class TestSanitizeDescription:
 
     def test_strips_img_tag(self) -> None:
         """Verify img onerror tags are removed."""
-        result = _sanitize_description('<img src=x onerror=alert(1)>text')
+        result = _sanitize_description("<img src=x onerror=alert(1)>text")
         assert "<img" not in result
         assert "text" in result
 
@@ -63,9 +63,7 @@ class TestWriteToFirestoreRetry:
 
         # Patch time.sleep to avoid real delays
         with patch("time.sleep"):
-            result = _write_to_firestore(
-                mock_service, "user1", mock_payload, 5.0, []
-            )
+            result = _write_to_firestore(mock_service, "user1", mock_payload, 5.0, [])
         assert result == "doc-id-success"
         assert mock_service.write_carbon_log.call_count == 2
 
@@ -107,11 +105,13 @@ class TestGetFirebaseServiceSingleton:
     def setup_method(self) -> None:
         """Reset the singleton before each test."""
         import app.routes.footprint as fp_module
+
         fp_module._firebase_service_instance = None
 
     def teardown_method(self) -> None:
         """Reset the singleton after each test."""
         import app.routes.footprint as fp_module
+
         fp_module._firebase_service_instance = None
 
     @patch("app.routes.footprint.FirebaseService")
@@ -124,7 +124,9 @@ class TestGetFirebaseServiceSingleton:
         assert result is mock_instance
 
     @patch("app.routes.footprint.FirebaseService")
-    def test_returns_same_instance_on_subsequent_calls(self, mock_cls: MagicMock) -> None:
+    def test_returns_same_instance_on_subsequent_calls(
+        self, mock_cls: MagicMock
+    ) -> None:
         """Verify get_firebase_service returns the same singleton instance."""
         mock_instance = MagicMock()
         mock_cls.return_value = mock_instance

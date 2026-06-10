@@ -69,7 +69,11 @@ class TestMetricsEndpoint:
         """Verify /metrics includes error counts for failed requests."""
         client = TestClient(app)
         # Trigger a 422 validation error
-        client.post("/api/v1/footprint/log", json={}, headers={"X-Requested-With": "XMLHttpRequest"})
+        client.post(
+            "/api/v1/footprint/log",
+            json={},
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
         response = client.get("/metrics")
         text = response.text
         assert "http_errors_total" in text

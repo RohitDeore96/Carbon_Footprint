@@ -26,7 +26,9 @@ class TestReportErrorLoggingProvider:
         """Verify report_error delegates to log_error for the default logging provider."""
         with patch("app.utils.error_logging.log_error") as mock_log:
             exc = ValueError("test logging provider")
-            report_error(exc, context={"key": "val"}, request_path="/test", user_id="u1")
+            report_error(
+                exc, context={"key": "val"}, request_path="/test", user_id="u1"
+            )
             mock_log.assert_called_once()
 
     @pytest.mark.unit
@@ -42,9 +44,7 @@ class TestReportErrorLoggingProvider:
     def test_report_error_does_not_call_sentry_or_cloud(self) -> None:
         """Verify that the logging provider does not invoke sentry or cloud helpers."""
         with patch("app.utils.error_logging.log_error"):
-            with patch(
-                "app.services.error_tracker._report_to_sentry"
-            ) as mock_sentry:
+            with patch("app.services.error_tracker._report_to_sentry") as mock_sentry:
                 with patch(
                     "app.services.error_tracker._report_to_cloud_error_reporting"
                 ) as mock_cloud:
@@ -61,9 +61,7 @@ class TestReportErrorSentryProvider:
     def test_sentry_provider_calls_report_to_sentry(self) -> None:
         """Verify the sentry provider calls _report_to_sentry."""
         with patch("app.utils.error_logging.log_error"):
-            with patch(
-                "app.services.error_tracker._report_to_sentry"
-            ) as mock_sentry:
+            with patch("app.services.error_tracker._report_to_sentry") as mock_sentry:
                 exc = ValueError("sentry test")
                 report_error(exc, context={"k": "v"}, request_path="/api", user_id="u2")
                 mock_sentry.assert_called_once_with(exc, {"k": "v"}, "/api", "u2")
@@ -94,13 +92,12 @@ class TestReportToSentry:
         # The function has `import sentry_sdk` inside a try/except ImportError
         # We need to make the import fail
         import sys
+
         original = sys.modules.get("sentry_sdk")
         sys.modules["sentry_sdk"] = None
         try:
             # Should not raise
-            _report_to_sentry(
-                ValueError("no sdk"), None, "/test", "u1"
-            )
+            _report_to_sentry(ValueError("no sdk"), None, "/test", "u1")
         finally:
             if original is not None:
                 sys.modules["sentry_sdk"] = original
@@ -139,7 +136,10 @@ class TestReportToCloudErrorReporting:
         with patch("app.services.error_tracker.logger", test_logger):
             exc = ValueError("cloud report test")
             _report_to_cloud_error_reporting(
-                exc, context={"file": "main.py", "function": "handler"}, request_path="/api/v1/test", user_id="user1"
+                exc,
+                context={"file": "main.py", "function": "handler"},
+                request_path="/api/v1/test",
+                user_id="user1",
             )
 
         # Find the Cloud Error Report line and verify it's valid JSON
@@ -214,5 +214,6 @@ class TestReportToCloudErrorReporting:
                 assert "eventTime" in payload
                 # Verify it's parseable as ISO format
                 from datetime import datetime
+
                 datetime.fromisoformat(payload["eventTime"])
                 break

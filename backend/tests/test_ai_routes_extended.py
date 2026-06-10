@@ -15,11 +15,13 @@ class TestGetVertexServiceReset:
     def setup_method(self) -> None:
         """Reset the module-level singleton before each test."""
         import app.routes.ai_routes as ai_module
+
         ai_module._vertex_service_instance = None
 
     def teardown_method(self) -> None:
         """Clean up the module-level singleton after each test."""
         import app.routes.ai_routes as ai_module
+
         ai_module._vertex_service_instance = None
 
     @patch("app.routes.ai_routes.VertexAiService")
@@ -33,12 +35,15 @@ class TestGetVertexServiceReset:
         mock_service_cls.assert_called_once()
 
     @patch("app.routes.ai_routes.VertexAiService")
-    def test_returns_existing_healthy_instance(self, mock_service_cls: MagicMock) -> None:
+    def test_returns_existing_healthy_instance(
+        self, mock_service_cls: MagicMock
+    ) -> None:
         """Verify _get_vertex_service returns existing healthy instance."""
         mock_instance = MagicMock()
         mock_instance.is_healthy.return_value = True
 
         import app.routes.ai_routes as ai_module
+
         ai_module._vertex_service_instance = mock_instance
 
         result = _get_vertex_service()
@@ -53,6 +58,7 @@ class TestGetVertexServiceReset:
         mock_instance.reset_client.return_value = None
 
         import app.routes.ai_routes as ai_module
+
         ai_module._vertex_service_instance = mock_instance
 
         result = _get_vertex_service()

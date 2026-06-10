@@ -123,7 +123,9 @@ class TestGetFirestoreClient:
     @pytest.mark.unit
     @patch("app.services.firebase_service.ensure_firebase_initialized")
     @patch("app.services.firebase_service.firestore")
-    def test_returns_firestore_client(self, mock_firestore: MagicMock, mock_ensure: MagicMock) -> None:
+    def test_returns_firestore_client(
+        self, mock_firestore: MagicMock, mock_ensure: MagicMock
+    ) -> None:
         """Verify _get_firestore_client returns a Firestore client."""
         mock_client = MagicMock()
         mock_firestore.client.return_value = mock_client
@@ -146,11 +148,17 @@ class TestGetAggregatedSummary:
         mock_aggregation.get.return_value = [mock_row]
         mock_query = MagicMock()
         mock_query.aggregate.return_value = mock_aggregation
-        mock_client.collection.return_value.where.return_value.where.return_value = mock_query
+        mock_client.collection.return_value.where.return_value.where.return_value = (
+            mock_query
+        )
 
         # Mock AggregationField to avoid real Firestore calls
-        mock_firestore.AggregationField.sum.return_value.alias.return_value = MagicMock()
-        mock_firestore.AggregationField.count.return_value.alias.return_value = MagicMock()
+        mock_firestore.AggregationField.sum.return_value.alias.return_value = (
+            MagicMock()
+        )
+        mock_firestore.AggregationField.count.return_value.alias.return_value = (
+            MagicMock()
+        )
 
         service = FirebaseService(client=mock_client)
         result = service.get_aggregated_summary("user1", 30)
@@ -165,7 +173,9 @@ class TestGetAggregatedSummary:
         # Make server aggregation raise an error
         mock_query = MagicMock()
         mock_query.aggregate.side_effect = AttributeError("aggregate not available")
-        mock_client.collection.return_value.where.return_value.where.return_value = mock_query
+        mock_client.collection.return_value.where.return_value.where.return_value = (
+            mock_query
+        )
 
         # Mock get_user_logs to return data for fallback
         logs = [
@@ -187,7 +197,9 @@ class TestGetAggregatedSummary:
         mock_client = MagicMock()
         mock_query = MagicMock()
         mock_query.aggregate.side_effect = TypeError("unsupported")
-        mock_client.collection.return_value.where.return_value.where.return_value = mock_query
+        mock_client.collection.return_value.where.return_value.where.return_value = (
+            mock_query
+        )
 
         service = FirebaseService(client=mock_client)
         with patch.object(service, "get_user_logs", return_value=[]):
@@ -222,7 +234,9 @@ class TestGetAggregatedSummary:
         mock_doc.to_dict.return_value = {"total_co2e_kg": 3.0, "user_id": "u1"}
 
         mock_client = MagicMock()
-        mock_client.collection.return_value.where.return_value.where.return_value.order_by.return_value.limit.return_value.stream.return_value = [mock_doc]
+        mock_client.collection.return_value.where.return_value.where.return_value.order_by.return_value.limit.return_value.stream.return_value = [
+            mock_doc
+        ]
 
         # Clear any cached data
         invalidate_logs_cache("u1", 30)
@@ -245,7 +259,10 @@ class TestGetAggregatedSummary:
         mock_doc_valid.to_dict.return_value = {"total_co2e_kg": 2.0}
 
         mock_client = MagicMock()
-        mock_client.collection.return_value.where.return_value.where.return_value.order_by.return_value.limit.return_value.stream.return_value = [mock_doc_none, mock_doc_valid]
+        mock_client.collection.return_value.where.return_value.where.return_value.order_by.return_value.limit.return_value.stream.return_value = [
+            mock_doc_none,
+            mock_doc_valid,
+        ]
 
         invalidate_logs_cache("u2", 30)
 

@@ -14,6 +14,7 @@ class TestEnsureFirebaseInitializedAlreadyInitialized:
     def test_returns_immediately_when_already_initialized(self) -> None:
         """Verify ensure_firebase_initialized returns immediately when flag is True."""
         import app.middleware.auth as auth_module
+
         auth_module._firebase_app_initialized = True
 
         with patch("app.middleware.auth.get_app") as mock_get_app:
@@ -27,6 +28,7 @@ class TestEnsureFirebaseInitializedAlreadyInitialized:
     def test_calls_get_app_when_flag_is_false(self) -> None:
         """Verify ensure_firebase_initialized checks get_app when flag is False."""
         import app.middleware.auth as auth_module
+
         auth_module._firebase_app_initialized = False
 
         with patch("app.middleware.auth.get_app") as mock_get_app:

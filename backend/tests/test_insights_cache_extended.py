@@ -11,7 +11,9 @@ class TestSetCachedInsightCountCheck:
     """Tests for set_cached_insight with cache size check."""
 
     @patch("app.services.insights_cache._get_db")
-    def test_set_cached_insight_skips_write_when_cache_full(self, mock_get_db: MagicMock) -> None:
+    def test_set_cached_insight_skips_write_when_cache_full(
+        self, mock_get_db: MagicMock
+    ) -> None:
         """Verify set_cached_insight skips write when cache exceeds MAX_CACHE_ENTRIES."""
         mock_db = MagicMock()
         mock_collection = MagicMock()
@@ -38,7 +40,9 @@ class TestSetCachedInsightCountCheck:
         mock_db.collection.return_value.document.assert_not_called()
 
     @patch("app.services.insights_cache._get_db")
-    def test_set_cached_insight_writes_when_cache_has_room(self, mock_get_db: MagicMock) -> None:
+    def test_set_cached_insight_writes_when_cache_has_room(
+        self, mock_get_db: MagicMock
+    ) -> None:
         """Verify set_cached_insight writes when cache is below MAX_CACHE_ENTRIES."""
         mock_db = MagicMock()
         mock_collection = MagicMock()
@@ -60,7 +64,9 @@ class TestSetCachedInsightCountCheck:
         mock_db.collection.return_value.document.assert_called_once()
 
     @patch("app.services.insights_cache._get_db")
-    def test_set_cached_insight_handles_count_not_available(self, mock_get_db: MagicMock) -> None:
+    def test_set_cached_insight_handles_count_not_available(
+        self, mock_get_db: MagicMock
+    ) -> None:
         """Verify set_cached_insight proceeds when count() is not available."""
         mock_db = MagicMock()
         mock_collection = MagicMock()
