@@ -12,6 +12,7 @@ import os
 from fastapi import APIRouter, Header, HTTPException, status
 
 from app.services.insights_cache import cleanup_expired_cache_entries
+from app.services.migration import get_migration_status
 
 router: APIRouter = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
@@ -65,3 +66,29 @@ async def trigger_cache_cleanup(
     _verify_admin_key(x_admin_key)
     deleted_count: int = cleanup_expired_cache_entries()
     return {"deleted_count": deleted_count}
+
+
+@router.get(
+    "/migration-status",
+    status_code=status.HTTP_200_OK,
+)
+async def get_schema_migration_status(
+    x_admin_key: str | None = Header(None, alias="X-Admin-Key"),
+) -> dict:
+    """Retrieve the current Firestore schema migration status.
+
+    Returns the current schema version and list of registered migrations.
+    Requires the ``X-Admin-Key`` header for authentication.
+
+    Args:
+        x_admin_key: The admin API key from the request header.
+
+    Returns:
+        A dictionary with schema version and migration details.
+
+    Raises:
+        HTTPException: 503 if ADMIN_API_KEY is not configured.
+        HTTPException: 401 if the admin key does not match.
+    """
+    _verify_admin_key(x_admin_key)
+    return get_migration_status()

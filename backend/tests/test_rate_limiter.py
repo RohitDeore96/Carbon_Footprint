@@ -81,10 +81,14 @@ class TestRateLimiterAIEndpoints:
         ai_limit = AppConstants.RATE_LIMIT_AI_REQUESTS_PER_MINUTE
         # Send limit requests
         for _ in range(ai_limit):
-            rate_limit_client.post("/api/v1/ai/insights")
+            rate_limit_client.post(
+                "/api/v1/ai/insights", headers={"X-Requested-With": "XMLHttpRequest"}
+            )
 
         # The next AI request should be rate limited
-        response = rate_limit_client.post("/api/v1/ai/insights")
+        response = rate_limit_client.post(
+            "/api/v1/ai/insights", headers={"X-Requested-With": "XMLHttpRequest"}
+        )
         assert response.status_code == 429
         assert "Rate limit exceeded" in response.json()["detail"]
 

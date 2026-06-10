@@ -42,13 +42,42 @@ def _get_client_ip(request: Request) -> str:
     returns the proxy's IP. The ``X-Forwarded-For`` header contains the actual
     client IP. We take the IP at position ``-_TRUSTED_PROXY_COUNT`` from the
     right to account for untrusted upstream proxies.
+
+    Validates that extracted IPs are well-formed to prevent header spoofing
+    with malformed values that could bypass rate limiting.
     """
     forwarded_for = request.headers.get("x-forwarded-for")
     if forwarded_for:
         ips = [ip.strip() for ip in forwarded_for.split(",")]
         if len(ips) >= _TRUSTED_PROXY_COUNT:
-            return ips[-_TRUSTED_PROXY_COUNT]
-    return request.client.host if request.client else "unknown"
+            candidate = ips[-_TRUSTED_PROXY_COUNT]
+            if _is_valid_ip(candidate):
+                return candidate
+    fallback = request.client.host if request.client else "unknown"
+    return fallback if _is_valid_ip(fallback) else "unknown"
+
+
+def _is_valid_ip(ip: str) -> bool:
+    """Validate that a string is a well-formed IPv4 or IPv6 address.
+
+    Prevents rate limiter bypass via malformed X-Forwarded-For headers.
+    Rejects empty strings, overly long strings, and non-IP values.
+
+    Args:
+        ip: The IP address string to validate.
+
+    Returns:
+        True if the string appears to be a valid IP address.
+    """
+    import ipaddress as _ipaddress
+
+    if not ip or len(ip) > 45:  # Max IPv6 length with brackets
+        return False
+    try:
+        _ipaddress.ip_address(ip)
+        return True
+    except ValueError:
+        return False
 
 
 def _is_window_expired(window_start: float, current_time: float) -> bool:
@@ -266,13 +295,18 @@ class InMemoryRateLimiterMiddleware(BaseHTTPMiddleware):
         )
         return int(self._clients[client_ip]["request_count"])
 
+    _EVICTION_THRESHOLD: float = 0.80  # Trigger eviction at 80% capacity
+
     def _evict_if_needed(self) -> None:
-        """Evict the oldest client entries when the tracking dict exceeds the limit.
+        """Evict the oldest client entries when the tracking dict approaches the limit.
 
         Uses FIFO order from OrderedDict — O(1) per eviction instead of
         O(n log n) sorting. Removes the oldest 20% of entries.
+        Proactively evicts at 80% capacity to maintain steady-state memory
+        usage instead of peaking before eviction.
         """
-        if len(self._clients) <= _MAX_CLIENT_ENTRIES:
+        threshold = int(_MAX_CLIENT_ENTRIES * self._EVICTION_THRESHOLD)
+        if len(self._clients) <= threshold:
             return
         evict_count = len(self._clients) // 5
         for _ in range(evict_count):

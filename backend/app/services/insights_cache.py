@@ -21,6 +21,8 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_CACHE_TTL_HOURS: int = 24
 CACHE_COLLECTION: str = "ai_insights_cache"
+MAX_CACHE_ENTRIES: int = 10_000
+CLEANUP_BATCH_SIZE: int = 500  # Firestore maximum batch operations
 
 
 def _compute_cache_key(user_data: dict[str, Any]) -> str:
@@ -92,6 +94,10 @@ def set_cached_insight(
 ) -> None:
     """Store a generated insight in Firestore cache.
 
+    Checks the total document count before writing. If the cache exceeds
+    ``MAX_CACHE_ENTRIES``, the write is skipped and a warning is logged.
+    This prevents unbounded Firestore data accumulation from burst traffic.
+
     Args:
         user_data: The emission data used as cache key input.
         insight: The AI-generated insight dictionary to cache.
@@ -99,6 +105,29 @@ def set_cached_insight(
     try:
         key = _compute_cache_key(user_data)
         db = _get_db()
+
+        # Check cache size before writing to prevent unbounded growth
+        collection_ref = db.collection(CACHE_COLLECTION)
+        # Use a cheap count query to check collection size
+        try:
+            count_query = collection_ref.count()  # type: ignore[attr-defined]
+            count_result = count_query.get()
+            current_count = 0
+            for r in count_result:
+                current_count = int(r[0].value) if r else 0
+            if current_count >= MAX_CACHE_ENTRIES:
+                logger.warning(
+                    "Insights cache size (%d) exceeds MAX_CACHE_ENTRIES (%d). "
+                    "Skipping cache write for key=%s. Run cleanup to free space.",
+                    current_count,
+                    MAX_CACHE_ENTRIES,
+                    key[:8],
+                )
+                return
+        except (AttributeError, TypeError):
+            # count() not available in older client versions — proceed without check
+            logger.debug("Firestore count() not available, skipping size check")
+
         db.collection(CACHE_COLLECTION).document(key).set(
             {
                 "cached_at": firebase_firestore.SERVER_TIMESTAMP,
@@ -113,7 +142,7 @@ def set_cached_insight(
 
 def cleanup_expired_cache_entries(
     ttl_hours: int = DEFAULT_CACHE_TTL_HOURS,
-    batch_size: int = 100,
+    batch_size: int = CLEANUP_BATCH_SIZE,
 ) -> int:
     """Delete expired entries from the ai_insights_cache Firestore collection.
 

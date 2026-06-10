@@ -289,7 +289,7 @@ describe('apiClient', () => {
 
       await apiClient.postInsightsRequest(sampleInsightsPayload);
 
-      expect(mockPost).toHaveBeenCalledWith('/api/v1/ai/insights', sampleInsightsPayload, { signal: undefined });
+      expect(mockPost).toHaveBeenCalledWith('/api/v1/ai/insights', sampleInsightsPayload, { signal: undefined, timeout: 60000 });
     });
 
     it('returns error result on HTTP error', async () => {
@@ -347,7 +347,7 @@ describe('apiClient', () => {
 
       await apiClient.postChatRequest(chatPayload);
 
-      expect(mockPost).toHaveBeenCalledWith('/api/v1/ai/chat', chatPayload, { signal: undefined });
+      expect(mockPost).toHaveBeenCalledWith('/api/v1/ai/chat', chatPayload, { signal: undefined, timeout: 60000 });
     });
 
     it('returns error result on HTTP error', async () => {

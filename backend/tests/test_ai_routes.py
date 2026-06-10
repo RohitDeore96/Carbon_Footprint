@@ -307,7 +307,11 @@ class TestInsightsEndpointHappyPath:
                 return_value=mock_ai_response_dict
             )
             mock_get_service.return_value = mock_service
-            response = client.post("/api/v1/ai/insights", json=valid_insights_payload)
+            response = client.post(
+                "/api/v1/ai/insights",
+                json=valid_insights_payload,
+                headers={"X-Requested-With": "XMLHttpRequest"},
+            )
             assert response.status_code == 200
             data: dict[str, Any] = response.json()
             assert data["user_id"] == "test-user-ai-001"
@@ -332,7 +336,11 @@ class TestInsightsEndpointHappyPath:
                 return_value=mock_ai_response_dict
             )
             mock_get_service.return_value = mock_service
-            response = client.post("/api/v1/ai/insights", json=valid_insights_payload)
+            response = client.post(
+                "/api/v1/ai/insights",
+                json=valid_insights_payload,
+                headers={"X-Requested-With": "XMLHttpRequest"},
+            )
             data: dict[str, Any] = response.json()
             assert "insight" in data
             assert len(data["insight"]) > 0
@@ -356,7 +364,11 @@ class TestInsightsEndpointHappyPath:
                 return_value=mock_ai_response_dict
             )
             mock_get_service.return_value = mock_service
-            response = client.post("/api/v1/ai/insights", json=valid_insights_payload)
+            response = client.post(
+                "/api/v1/ai/insights",
+                json=valid_insights_payload,
+                headers={"X-Requested-With": "XMLHttpRequest"},
+            )
             data: dict[str, Any] = response.json()
             assert len(data["actionable_steps"]) == 3
         finally:
@@ -379,7 +391,11 @@ class TestInsightsEndpointHappyPath:
                 return_value=mock_ai_response_dict
             )
             mock_get_service.return_value = mock_service
-            response = client.post("/api/v1/ai/insights", json=valid_insights_payload)
+            response = client.post(
+                "/api/v1/ai/insights",
+                json=valid_insights_payload,
+                headers={"X-Requested-With": "XMLHttpRequest"},
+            )
             data: dict[str, Any] = response.json()
             assert "equivalent_impact" in data
             assert len(data["equivalent_impact"]) > 0
@@ -403,7 +419,11 @@ class TestInsightsEndpointHappyPath:
                 return_value=mock_ai_response_dict
             )
             mock_get_service.return_value = mock_service
-            client.post("/api/v1/ai/insights", json=valid_insights_payload)
+            client.post(
+                "/api/v1/ai/insights",
+                json=valid_insights_payload,
+                headers={"X-Requested-With": "XMLHttpRequest"},
+            )
             mock_service.generate_insights_async.assert_called_once()
         finally:
             app.dependency_overrides.pop(get_current_user, None)
@@ -433,7 +453,11 @@ class TestInsightsEndpointApiFailure:
                 side_effect=Exception("429 Resource exhausted: quota exceeded")
             )
             mock_get_service.return_value = mock_service
-            response = client.post("/api/v1/ai/insights", json=valid_insights_payload)
+            response = client.post(
+                "/api/v1/ai/insights",
+                json=valid_insights_payload,
+                headers={"X-Requested-With": "XMLHttpRequest"},
+            )
             assert response.status_code == 500
             assert "temporarily unavailable" in response.json()["detail"]
         finally:
@@ -455,7 +479,11 @@ class TestInsightsEndpointApiFailure:
                 side_effect=TimeoutError("Connection timed out after 30s")
             )
             mock_get_service.return_value = mock_service
-            response = client.post("/api/v1/ai/insights", json=valid_insights_payload)
+            response = client.post(
+                "/api/v1/ai/insights",
+                json=valid_insights_payload,
+                headers={"X-Requested-With": "XMLHttpRequest"},
+            )
             assert response.status_code == 500
             assert "temporarily unavailable" in response.json()["detail"]
         finally:
@@ -477,7 +505,11 @@ class TestInsightsEndpointApiFailure:
                 side_effect=ValueError("Invalid JSON from model")
             )
             mock_get_service.return_value = mock_service
-            response = client.post("/api/v1/ai/insights", json=valid_insights_payload)
+            response = client.post(
+                "/api/v1/ai/insights",
+                json=valid_insights_payload,
+                headers={"X-Requested-With": "XMLHttpRequest"},
+            )
             assert response.status_code == 500
             assert "temporarily unavailable" in response.json()["detail"]
         finally:
@@ -501,7 +533,11 @@ class TestInsightsEndpointValidation:
             "period_days": 30,
             "emission_breakdown": [],
         }
-        response = client.post("/api/v1/ai/insights", json=payload)
+        response = client.post(
+            "/api/v1/ai/insights",
+            json=payload,
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
         assert response.status_code == 422
 
     @pytest.mark.integration
@@ -519,7 +555,11 @@ class TestInsightsEndpointValidation:
                 }
             ],
         }
-        response = client.post("/api/v1/ai/insights", json=payload)
+        response = client.post(
+            "/api/v1/ai/insights",
+            json=payload,
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
         assert response.status_code == 422
 
     @pytest.mark.integration
@@ -538,7 +578,11 @@ class TestInsightsEndpointValidation:
                 }
             ],
         }
-        response = client.post("/api/v1/ai/insights", json=payload)
+        response = client.post(
+            "/api/v1/ai/insights",
+            json=payload,
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
         assert response.status_code == 422
 
     @pytest.mark.integration
@@ -557,7 +601,11 @@ class TestInsightsEndpointValidation:
                 }
             ],
         }
-        response = client.post("/api/v1/ai/insights", json=payload)
+        response = client.post(
+            "/api/v1/ai/insights",
+            json=payload,
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
         assert response.status_code == 422
 
     @pytest.mark.integration
@@ -576,13 +624,21 @@ class TestInsightsEndpointValidation:
                 }
             ],
         }
-        response = client.post("/api/v1/ai/insights", json=payload)
+        response = client.post(
+            "/api/v1/ai/insights",
+            json=payload,
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
         assert response.status_code == 422
 
     @pytest.mark.integration
     def test_missing_body_returns_422(self, client: TestClient) -> None:
         """Verify completely empty request body triggers 422 validation error."""
-        response = client.post("/api/v1/ai/insights", json={})
+        response = client.post(
+            "/api/v1/ai/insights",
+            json={},
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
         assert response.status_code == 422
 
 
@@ -766,7 +822,11 @@ class TestChatEndpointHappyPath:
                 }
             )
             mock_get_service.return_value = mock_service
-            response = client.post("/api/v1/ai/chat", json=valid_chat_payload)
+            response = client.post(
+                "/api/v1/ai/chat",
+                json=valid_chat_payload,
+                headers={"X-Requested-With": "XMLHttpRequest"},
+            )
             assert response.status_code == 200
         finally:
             app.dependency_overrides.pop(get_current_user, None)
@@ -793,7 +853,11 @@ class TestChatEndpointHappyPath:
                 }
             )
             mock_get_service.return_value = mock_service
-            response = client.post("/api/v1/ai/chat", json=valid_chat_payload)
+            response = client.post(
+                "/api/v1/ai/chat",
+                json=valid_chat_payload,
+                headers={"X-Requested-With": "XMLHttpRequest"},
+            )
             data: dict[str, Any] = response.json()
             assert "response" in data
             assert "suggestions" in data
@@ -820,7 +884,11 @@ class TestChatEndpointHappyPath:
                 side_effect=Exception("Gemini API timeout")
             )
             mock_get_service.return_value = mock_service
-            response = client.post("/api/v1/ai/chat", json=valid_chat_payload)
+            response = client.post(
+                "/api/v1/ai/chat",
+                json=valid_chat_payload,
+                headers={"X-Requested-With": "XMLHttpRequest"},
+            )
             assert response.status_code == 500
             assert "temporarily unavailable" in response.json()["detail"]
         finally:
@@ -846,7 +914,11 @@ class TestChatEndpointValidation:
                 }
             ],
         }
-        response = client.post("/api/v1/ai/chat", json=payload)
+        response = client.post(
+            "/api/v1/ai/chat",
+            json=payload,
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
         assert response.status_code == 422
 
     @pytest.mark.integration
@@ -866,7 +938,11 @@ class TestChatEndpointValidation:
                 }
             ],
         }
-        response = client.post("/api/v1/ai/chat", json=payload)
+        response = client.post(
+            "/api/v1/ai/chat",
+            json=payload,
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
         assert response.status_code == 422
 
 
@@ -908,7 +984,11 @@ class TestAiRouteOwnership:
                 }
             )
             mock_get_service.return_value = mock_service
-            response = client.post("/api/v1/ai/insights", json=valid_insights_payload)
+            response = client.post(
+                "/api/v1/ai/insights",
+                json=valid_insights_payload,
+                headers={"X-Requested-With": "XMLHttpRequest"},
+            )
             assert response.status_code == 403
             assert "Access denied" in response.json()["detail"]
         finally:
@@ -931,7 +1011,11 @@ class TestAiRouteOwnership:
                 return_value=mock_ai_response_dict
             )
             mock_get_service.return_value = mock_service
-            response = client.post("/api/v1/ai/insights", json=valid_insights_payload)
+            response = client.post(
+                "/api/v1/ai/insights",
+                json=valid_insights_payload,
+                headers={"X-Requested-With": "XMLHttpRequest"},
+            )
             assert response.status_code == 200
         finally:
             app.dependency_overrides.pop(get_current_user, None)
@@ -957,7 +1041,11 @@ class TestAiRouteOwnership:
                 }
             )
             mock_get_service.return_value = mock_service
-            response = client.post("/api/v1/ai/insights", json=valid_insights_payload)
+            response = client.post(
+                "/api/v1/ai/insights",
+                json=valid_insights_payload,
+                headers={"X-Requested-With": "XMLHttpRequest"},
+            )
             assert response.status_code == 403
             assert "Access denied" in response.json()["detail"]
         finally:
@@ -993,7 +1081,11 @@ class TestAiRouteOwnership:
                 return_value=mock_ai_response_dict
             )
             mock_get_service.return_value = mock_service
-            response = client.post("/api/v1/ai/insights", json=payload)
+            response = client.post(
+                "/api/v1/ai/insights",
+                json=payload,
+                headers={"X-Requested-With": "XMLHttpRequest"},
+            )
             assert response.status_code == 200
         finally:
             app.dependency_overrides.pop(get_current_user, None)
@@ -1032,7 +1124,11 @@ class TestAiRouteOwnership:
                 }
             )
             mock_get_service.return_value = mock_service
-            response = client.post("/api/v1/ai/chat", json=payload)
+            response = client.post(
+                "/api/v1/ai/chat",
+                json=payload,
+                headers={"X-Requested-With": "XMLHttpRequest"},
+            )
             assert response.status_code == 403
             assert "Access denied" in response.json()["detail"]
         finally:
@@ -1072,7 +1168,11 @@ class TestAiRouteOwnership:
                 }
             )
             mock_get_service.return_value = mock_service
-            response = client.post("/api/v1/ai/chat", json=payload)
+            response = client.post(
+                "/api/v1/ai/chat",
+                json=payload,
+                headers={"X-Requested-With": "XMLHttpRequest"},
+            )
             assert response.status_code == 200
         finally:
             app.dependency_overrides.pop(get_current_user, None)

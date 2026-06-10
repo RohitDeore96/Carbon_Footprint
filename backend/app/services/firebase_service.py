@@ -2,9 +2,15 @@
 
 Provides a strictly typed interface for writing calculated emission data
 to the Firestore ``carbon_logs`` collection via ``firebase-admin``.
+
+Includes a short-lived in-memory cache (5-minute TTL) for ``get_user_logs``
+results, eliminating redundant Firestore reads when the same user's data
+is requested within a brief time window (e.g., history → summary navigation).
 """
 
 import logging
+import threading
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -15,6 +21,68 @@ from app.constants import AppConstants
 from app.middleware.auth import ensure_firebase_initialized
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# In-memory TTL cache for get_user_logs()
+# ---------------------------------------------------------------------------
+
+_LOGS_CACHE_TTL_SECONDS: int = 300  # 5 minutes
+_LOGS_CACHE_MAX_ENTRIES: int = 500
+_logs_cache: dict[tuple[str, int], tuple[float, list[dict[str, Any]]]] = {}
+_logs_cache_lock: threading.Lock = threading.Lock()
+
+
+def _get_cached_logs(user_id: str, period_days: int) -> list[dict[str, Any]] | None:
+    """Return cached logs if present and not expired, else None."""
+    key = (user_id, period_days)
+    with _logs_cache_lock:
+        entry = _logs_cache.get(key)
+        if entry is None:
+            return None
+        cached_at, data = entry
+        if time.monotonic() - cached_at > _LOGS_CACHE_TTL_SECONDS:
+            del _logs_cache[key]
+            return None
+        return data
+
+
+def _set_cached_logs(
+    user_id: str, period_days: int, data: list[dict[str, Any]]
+) -> None:
+    """Store logs in the TTL cache, evicting oldest entries if at capacity."""
+    key = (user_id, period_days)
+    with _logs_cache_lock:
+        # Evict expired entries first
+        now = time.monotonic()
+        expired = [
+            k
+            for k, (ts, _) in _logs_cache.items()
+            if now - ts > _LOGS_CACHE_TTL_SECONDS
+        ]
+        for k in expired:
+            del _logs_cache[k]
+        # If still at capacity, evict the oldest 20%
+        if len(_logs_cache) >= _LOGS_CACHE_MAX_ENTRIES:
+            sorted_keys = sorted(_logs_cache.keys(), key=lambda k: _logs_cache[k][0])
+            evict_count = max(1, len(sorted_keys) // 5)
+            for k in sorted_keys[:evict_count]:
+                del _logs_cache[k]
+        _logs_cache[key] = (now, data)
+
+
+def invalidate_logs_cache(user_id: str, period_days: int | None = None) -> None:
+    """Invalidate cached logs for a user, or all cached entries if period_days is None.
+
+    Call this after a write operation (log_footprint) to ensure the next
+    read fetches fresh data from Firestore.
+    """
+    with _logs_cache_lock:
+        if period_days is not None:
+            _logs_cache.pop((user_id, period_days), None)
+        else:
+            keys_to_remove = [k for k in _logs_cache if k[0] == user_id]
+            for k in keys_to_remove:
+                del _logs_cache[k]
 
 
 def _get_firestore_client() -> FirestoreClient:
@@ -102,12 +170,21 @@ class FirebaseService:
             results,
             calculation_date,
         )
-        return self._persist_document(document)
+        doc_id = self._persist_document(document)
+        # Invalidate cached logs so subsequent reads fetch fresh data
+        invalidate_logs_cache(user_id)
+        return doc_id
 
     def get_user_logs(
         self, user_id: str, period_days: int = 30
     ) -> list[dict[str, Any]]:
         """Retrieve a user's carbon log entries from Firestore.
+
+        Uses a 5-minute in-memory TTL cache keyed by (user_id, period_days)
+        to eliminate redundant Firestore reads when the same query is issued
+        within a brief window (e.g., history + summary on dashboard load).
+        The cache is automatically invalidated on write operations via
+        ``invalidate_logs_cache``.
 
         Args:
             user_id: The unique identifier of the user.
@@ -116,6 +193,14 @@ class FirebaseService:
         Returns:
             A list of carbon log document dictionaries, newest first.
         """
+        # Check TTL cache first
+        cached = _get_cached_logs(user_id, period_days)
+        if cached is not None:
+            logger.debug(
+                "Logs cache hit for user=%s period=%d", user_id[:8], period_days
+            )
+            return cached
+
         cutoff: datetime = datetime.now(tz=timezone.utc) - timedelta(days=period_days)
         docs = (
             self._client.collection(AppConstants.FIREBASE_COLLECTION_CARBON_LOGS)
@@ -125,7 +210,11 @@ class FirebaseService:
             .limit(AppConstants.FIREBASE_QUERY_LIMIT)
             .stream()
         )
-        return [d for doc in docs if (d := doc.to_dict()) is not None]
+        result = [d for doc in docs if (d := doc.to_dict()) is not None]
+
+        # Store in TTL cache
+        _set_cached_logs(user_id, period_days, result)
+        return result
 
     def get_aggregated_summary(
         self, user_id: str, period_days: int = 30

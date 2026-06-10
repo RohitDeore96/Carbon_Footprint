@@ -162,14 +162,24 @@ function validateResponse<T>(
 }
 
 // ---------------------------------------------------------------------------
+// Per-endpoint timeout configuration
+// ---------------------------------------------------------------------------
+
+const DATA_ENDPOINT_TIMEOUT_MS = 10_000;   // 10s for data endpoints
+const AI_ENDPOINT_TIMEOUT_MS = 60_000;      // 60s for AI endpoints (longer model inference)
+
+// ---------------------------------------------------------------------------
 // Axios Instance with Auth Interceptor
 // ---------------------------------------------------------------------------
 
 function createAxiosInstance(): AxiosInstance {
   const instance = axios.create({
     baseURL: APP_CONSTANTS.API_BASE_URL,
-    headers: { 'Content-Type': 'application/json' },
-    timeout: 30000,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest', // CSRF protection — required by backend CSRFMiddleware
+    },
+    timeout: DATA_ENDPOINT_TIMEOUT_MS,
   });
 
   // Automatically attach Firebase ID token to every request
@@ -230,6 +240,24 @@ function createAxiosInstance(): AxiosInstance {
 const httpClient: AxiosInstance = createAxiosInstance();
 
 // ---------------------------------------------------------------------------
+// Request Deduplication — prevents concurrent identical API calls
+// ---------------------------------------------------------------------------
+
+const _pendingRequests: Map<string, Promise<unknown>> = new Map();
+
+function _deduplicatedRequest<T>(key: string, factory: () => Promise<T>): Promise<T> {
+  const existing = _pendingRequests.get(key) as Promise<T> | undefined;
+  if (existing !== undefined) {
+    return existing;
+  }
+  const promise = factory().finally(() => {
+    _pendingRequests.delete(key);
+  });
+  _pendingRequests.set(key, promise);
+  return promise;
+}
+
+// ---------------------------------------------------------------------------
 // Typed API Methods
 // ---------------------------------------------------------------------------
 
@@ -260,7 +288,7 @@ async function postInsightsRequest(
     const response: AxiosResponse<InsightsResponse> = await httpClient.post(
       '/api/v1/ai/insights',
       payload,
-      { signal },
+      { signal, timeout: AI_ENDPOINT_TIMEOUT_MS },
     );
     return { success: true, data: response.data };
   } catch (err) {
@@ -294,6 +322,10 @@ export interface FootprintHistoryResponse {
   readonly logs: readonly CarbonCalculationResponse[];
   readonly count: number;
   readonly period_days: number;
+  readonly page: number;
+  readonly page_size: number;
+  readonly total_pages: number;
+  readonly has_next: boolean;
 }
 
 export interface CategoryBreakdownEntry {
@@ -314,15 +346,18 @@ async function getFootprintHistory(
   periodDays: number = 30,
   signal?: AbortSignal,
 ): Promise<ApiResult<FootprintHistoryResponse>> {
-  try {
-    const response: AxiosResponse<FootprintHistoryResponse> = await httpClient.get(
-      `/api/v1/footprint/history/${userId}`,
-      { params: { period_days: periodDays }, signal },
-    );
-    return { success: true, data: response.data };
-  } catch (err) {
-    return { success: false, error: buildApiError(err as AxiosError) };
-  }
+  const dedupeKey = `history:${userId}:${periodDays}`;
+  return _deduplicatedRequest(dedupeKey, async () => {
+    try {
+      const response: AxiosResponse<FootprintHistoryResponse> = await httpClient.get(
+        `/api/v1/footprint/history/${userId}`,
+        { params: { period_days: periodDays }, signal },
+      );
+      return { success: true, data: response.data };
+    } catch (err) {
+      return { success: false, error: buildApiError(err as AxiosError) };
+    }
+  });
 }
 
 async function postChatRequest(
@@ -333,7 +368,7 @@ async function postChatRequest(
     const response: AxiosResponse<ChatResponse> = await httpClient.post(
       '/api/v1/ai/chat',
       payload,
-      { signal },
+      { signal, timeout: AI_ENDPOINT_TIMEOUT_MS },
     );
     return { success: true, data: response.data };
   } catch (err) {
@@ -346,18 +381,33 @@ async function getFootprintSummary(
   periodDays: number = 30,
   signal?: AbortSignal,
 ): Promise<ApiResult<FootprintSummaryResponse>> {
-  try {
-    const response: AxiosResponse<FootprintSummaryResponse> = await httpClient.get(
-      `/api/v1/footprint/summary/${userId}`,
-      { params: { period_days: periodDays }, signal },
-    );
-    return { success: true, data: response.data };
-  } catch (err) {
-    return { success: false, error: buildApiError(err as AxiosError) };
-  }
+  const dedupeKey = `summary:${userId}:${periodDays}`;
+  return _deduplicatedRequest(dedupeKey, async () => {
+    try {
+      const response: AxiosResponse<FootprintSummaryResponse> = await httpClient.get(
+        `/api/v1/footprint/summary/${userId}`,
+        { params: { period_days: periodDays }, signal },
+      );
+      return { success: true, data: response.data };
+    } catch (err) {
+      return { success: false, error: buildApiError(err as AxiosError) };
+    }
+  });
 }
 
-export const apiClient = {
+// ---------------------------------------------------------------------------
+// IApiClient Interface — enables test mocking without module-level jest.mock()
+// ---------------------------------------------------------------------------
+
+export interface IApiClient {
+  readonly postFootprintLog: typeof postFootprintLog;
+  readonly postInsightsRequest: typeof postInsightsRequest;
+  readonly postChatRequest: typeof postChatRequest;
+  readonly getFootprintHistory: typeof getFootprintHistory;
+  readonly getFootprintSummary: typeof getFootprintSummary;
+}
+
+export const apiClient: IApiClient = {
   postFootprintLog,
   postInsightsRequest,
   postChatRequest,

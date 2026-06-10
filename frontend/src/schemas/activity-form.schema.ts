@@ -18,23 +18,32 @@ function todayLocal(): string {
 
 const _today = todayLocal();
 
-const positiveNumber = (label: string): z.ZodNumber =>
-  z.number().positive(`${label} must be positive`);
+/** Refinement: date must not be in the future. */
+const notFutureDate = z.string().refine(
+  (val) => new Date(val) <= new Date(),
+  { message: 'Date cannot be in the future' },
+);
+
+/** Composable date field with future-date guard. */
+const dateField = z.string().min(1, 'Date is required').pipe(notFutureDate);
 
 export const TransportFormSchema = z.object({
   category: z.literal('transport'),
   description: z.string().min(1, 'Description is required').max(500, 'Max 500 characters'),
-  date: z.string().min(1, 'Date is required'),
+  date: dateField,
   mode: z.enum(['car', 'bus', 'train', 'bicycle', 'walking', 'flight'] as const, {
     error: 'Select a transport mode',
   }),
-  distance_km: positiveNumber('Distance').max(50000, 'Distance cannot exceed 50,000 km'),
+  distance_km: z
+    .number()
+    .min(0.1, 'Distance must be at least 0.1 km')
+    .max(50000, 'Distance cannot exceed 50,000 km'),
 });
 
 export const EnergyFormSchema = z.object({
   category: z.literal('energy'),
   description: z.string().min(1, 'Description is required').max(500, 'Max 500 characters'),
-  date: z.string().min(1, 'Date is required'),
+  date: dateField,
   source: z.enum(['electricity', 'natural_gas', 'solar', 'wind'] as const, {
     error: 'Select an energy source',
   }),
@@ -47,7 +56,7 @@ export const EnergyFormSchema = z.object({
 export const DietFormSchema = z.object({
   category: z.literal('food'),
   description: z.string().min(1, 'Description is required').max(500, 'Max 500 characters'),
-  date: z.string().min(1, 'Date is required'),
+  date: dateField,
   diet_type: z.enum(['meat_heavy', 'average', 'vegetarian', 'vegan'] as const, {
     error: 'Select a diet type',
   }),
@@ -61,7 +70,7 @@ export const DietFormSchema = z.object({
 export const ConsumptionFormSchema = z.object({
   category: z.literal('consumption'),
   description: z.string().min(1, 'Description is required').max(500, 'Max 500 characters'),
-  date: z.string().min(1, 'Date is required'),
+  date: dateField,
   item_type: z.enum(['clothing', 'electronics', 'furniture', 'general'] as const, {
     error: 'Select an item type',
   }),

@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import re
+import threading
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
@@ -22,21 +23,26 @@ router: APIRouter = APIRouter(prefix="/api/v1/footprint", tags=["footprint"])
 
 
 _firebase_service_instance: FirebaseService | None = None
+_singleton_lock: threading.Lock = threading.Lock()
 
 
 def get_firebase_service() -> FirebaseService:
-    """FastAPI dependency that provides a singleton FirebaseService instance.
+    """FastAPI dependency that provides a thread-safe singleton FirebaseService instance.
 
     Returns the same FirebaseService across all requests within a process.
     The Firestore client internally shares a gRPC channel, so reusing
     the wrapper avoids unnecessary object allocation and GC pressure.
+    Uses a threading.Lock to ensure thread-safe initialization, protecting
+    against race conditions in multi-threaded ASGI workers.
 
     Returns:
         A configured FirebaseService instance.
     """
     global _firebase_service_instance
     if _firebase_service_instance is None:
-        _firebase_service_instance = FirebaseService()
+        with _singleton_lock:
+            if _firebase_service_instance is None:
+                _firebase_service_instance = FirebaseService()
     return _firebase_service_instance
 
 
@@ -83,9 +89,16 @@ async def log_footprint(
     results = process_all_entries(payload.entries)
     total_co2e_kg: float = sum_total_emissions(results)
     # Sanitize description fields as defense-in-depth against XSS
+    # Validate non-empty after sanitization to prevent blank entries from
+    # HTML-only inputs like "<script>alert(1)</script>" → ""
     for entry in payload.entries:
         if entry.description:
             entry.description = _sanitize_description(entry.description)
+        if not entry.description or not entry.description.strip():
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Description must contain non-whitespace text after sanitization.",
+            )
     document_id: str = await asyncio.to_thread(
         _write_to_firestore, service, effective_user_id, payload, total_co2e_kg, results
     )
@@ -101,21 +114,28 @@ async def get_footprint_history(
     period_days: int = Query(
         default=30, ge=1, le=365, description="Lookback period in days"
     ),
+    page: int = Query(default=1, ge=1, description="Page number for pagination"),
+    page_size: int = Query(
+        default=20, ge=1, le=100, description="Number of entries per page"
+    ),
     authenticated_uid: str = Depends(get_current_user),
     service: FirebaseService = Depends(get_firebase_service),
 ) -> dict:
-    """Retrieve a user's carbon footprint history from Firestore.
+    """Retrieve a user's carbon footprint history from Firestore with pagination.
 
     All users (including anonymous) can only access their own data.
     Anonymous users receive a unique ID per session, ensuring isolation.
+    Supports cursor-free pagination with page/page_size parameters.
 
     Args:
         user_id: The unique identifier of the user.
         period_days: Number of days to look back (default 30, max 365).
+        page: Page number (1-indexed, default 1).
+        page_size: Number of entries per page (default 20, max 100).
         authenticated_uid: UID from Firebase ID token, or generated anonymous ID if none provided.
 
     Returns:
-        A dictionary containing the user's carbon log entries and count.
+        A dictionary containing the user's carbon log entries, pagination info, and count.
 
     Raises:
         HTTPException: 403 if user tries to access another user's data.
@@ -125,14 +145,23 @@ async def get_footprint_history(
         authenticated_uid, user_id, context="footprint"
     )
     try:
-        logs = await asyncio.to_thread(
+        all_logs = await asyncio.to_thread(
             service.get_user_logs, effective_user_id, period_days
         )
+        # Apply pagination
+        total_count = len(all_logs)
+        start_idx = (page - 1) * page_size
+        end_idx = start_idx + page_size
+        paginated_logs = all_logs[start_idx:end_idx]
         return {
             "user_id": effective_user_id,
-            "logs": logs,
-            "count": len(logs),
+            "logs": paginated_logs,
+            "count": total_count,
             "period_days": period_days,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": max(1, (total_count + page_size - 1) // page_size),
+            "has_next": end_idx < total_count,
         }
     except HTTPException:
         raise
@@ -237,6 +266,10 @@ def _sanitize_description(text: str) -> str:
     return re.sub(r"<[^>]*>", "", text)
 
 
+_FIRESTORE_WRITE_MAX_RETRIES: int = 3
+_FIRESTORE_WRITE_BACKOFF_BASE: float = 0.5  # seconds
+
+
 def _write_to_firestore(
     service: FirebaseService,
     effective_user_id: str,
@@ -244,7 +277,11 @@ def _write_to_firestore(
     total_co2e_kg: float,
     results: list[EmissionResult],
 ) -> str:
-    """Delegate the Firestore write and handle database errors.
+    """Delegate the Firestore write with retry logic for transient errors.
+
+    Implements exponential backoff for transient Firestore errors (network
+    timeouts, service unavailable) to prevent data loss from temporary
+    infrastructure issues. Non-retryable errors fail immediately.
 
     Args:
         service: The FirebaseService instance to use for the write.
@@ -257,26 +294,61 @@ def _write_to_firestore(
         The Firestore document ID of the persisted record.
 
     Raises:
-        HTTPException: 500 with detail message if the write operation fails.
+        HTTPException: 500 with detail message if all retries fail.
     """
-    try:
-        return service.write_carbon_log(
-            effective_user_id,
-            total_co2e_kg,
-            _serialize_results(results),
-            payload.calculation_date,
-        )
-    except Exception as exc:
-        log_error(
-            exc,
-            context={"effective_user_id": effective_user_id, "endpoint": "log"},
-            logger=logger,
-            request_path="/api/v1/footprint/log",
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error",
-        ) from exc
+    import time as time_module
+
+    last_exc: Exception | None = None
+    for attempt in range(_FIRESTORE_WRITE_MAX_RETRIES + 1):
+        try:
+            return service.write_carbon_log(
+                effective_user_id,
+                total_co2e_kg,
+                _serialize_results(results),
+                payload.calculation_date,
+            )
+        except Exception as exc:
+            last_exc = exc
+            # Only retry on transient errors (network, timeout, service unavailable)
+            is_transient = any(
+                kw in str(exc).lower()
+                for kw in (
+                    "timeout",
+                    "unavailable",
+                    "connection",
+                    "network",
+                    "deadline",
+                )
+            )
+            if not is_transient or attempt >= _FIRESTORE_WRITE_MAX_RETRIES:
+                log_error(
+                    exc,
+                    context={
+                        "effective_user_id": effective_user_id,
+                        "endpoint": "log",
+                        "attempt": attempt + 1,
+                    },
+                    logger=logger,
+                    request_path="/api/v1/footprint/log",
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Internal server error",
+                ) from exc
+            backoff = min(_FIRESTORE_WRITE_BACKOFF_BASE * (2**attempt), 4.0)
+            logger.warning(
+                "Firestore write attempt %d/%d failed (transient): %s. Retrying in %.1fs...",
+                attempt + 1,
+                _FIRESTORE_WRITE_MAX_RETRIES + 1,
+                exc,
+                backoff,
+            )
+            time_module.sleep(backoff)
+    # Should not reach here, but satisfy type checker
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail="Internal server error",
+    ) from last_exc
 
 
 def _build_response(

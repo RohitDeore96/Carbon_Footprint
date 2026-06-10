@@ -4,7 +4,7 @@
  * ChartPlaceholder, and shared constants/helpers.
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LineChart, Line } from 'recharts';
 import type { EmissionSummaryEntry } from '../../services/apiClient';
 import { BENCHMARK_LINE, PARIS_TARGET, CATEGORY_COLORS, roundCo2e } from './chartHelpers';
@@ -69,19 +69,21 @@ export const TrendChart = React.memo(function TrendChart({
 }: {
   readonly logs: readonly { total_co2e_kg: number; results: readonly { date?: string }[] }[];
 }): React.JSX.Element {
-  const dailyMap = new Map<string, number>();
-  for (const log of logs) {
-    const dateKey = log.results[0]?.date?.slice(0, 10) ?? 'unknown';
-    dailyMap.set(dateKey, (dailyMap.get(dateKey) ?? 0) + log.total_co2e_kg);
-  }
-  const chartData = Array.from(dailyMap.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, co2e]) => ({
-      date: date.slice(5),
-      co2e: roundCo2e(co2e),
-      benchmark: BENCHMARK_LINE,
-      target: PARIS_TARGET,
-    }));
+  const chartData = useMemo(() => {
+    const dailyMap = new Map<string, number>();
+    for (const log of logs) {
+      const dateKey = log.results[0]?.date?.slice(0, 10) ?? 'unknown';
+      dailyMap.set(dateKey, (dailyMap.get(dateKey) ?? 0) + log.total_co2e_kg);
+    }
+    return Array.from(dailyMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, co2e]) => ({
+        date: date.slice(5),
+        co2e: roundCo2e(co2e),
+        benchmark: BENCHMARK_LINE,
+        target: PARIS_TARGET,
+      }));
+  }, [logs]);
 
   if (chartData.length < 2) {
     return (

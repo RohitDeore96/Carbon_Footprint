@@ -3,10 +3,21 @@
 from unittest.mock import MagicMock
 
 import pytest
+from fastapi.testclient import TestClient
 
 from app.main import app
 from app.middleware.auth import get_current_user
 from app.routes.footprint import get_firebase_service
+
+# CSRF header that the frontend sends with every POST/PUT/DELETE request.
+# Test requests must include this header to pass the CSRFMiddleware.
+CSRF_HEADERS = {"X-Requested-With": "XMLHttpRequest"}
+
+
+@pytest.fixture(name="csrf_headers")
+def fixture_csrf_headers() -> dict[str, str]:
+    """Provide the CSRF header required for state-changing requests in tests."""
+    return CSRF_HEADERS.copy()
 
 
 @pytest.fixture(autouse=True)

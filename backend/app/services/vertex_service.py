@@ -10,7 +10,6 @@ import asyncio
 import json
 import logging
 import re
-import time as time_module
 from typing import Any
 
 from google import genai
@@ -278,6 +277,10 @@ class VertexAiService:
     Initializes the Gemini client and provides methods to generate
     sustainability insights from user carbon footprint data.
 
+    Includes a ``reset_client()`` method for recovering from a corrupted
+    GenAI client state (e.g., after prolonged connection issues), and a
+    ``is_healthy()`` check for production monitoring.
+
     Attributes:
         _client: The Google GenAI client instance.
         _model_name: The Gemini model identifier to use for generation.
@@ -294,6 +297,14 @@ class VertexAiService:
             client: An optional pre-configured GenAI client.
                     If ``None``, a new client is created with Vertex AI credentials.
         """
+        self._init_client(client)
+
+    def _init_client(self, client: genai.Client | None = None) -> None:
+        """Initialize or re-initialize the GenAI client.
+
+        Args:
+            client: An optional pre-configured GenAI client.
+        """
         import os
 
         if client is not None:
@@ -309,13 +320,40 @@ class VertexAiService:
         self._model_name: str = AppConstants.VERTEX_AI_MODEL_NAME
         self._config: types.GenerateContentConfig = _build_generation_config()
 
+    def reset_client(self, client: genai.Client | None = None) -> None:
+        """Reset the GenAI client, useful after connection errors or memory pressure.
+
+        Creates a fresh client instance, discarding the old one. This releases
+        any cached HTTP connection pools and buffered responses held by the
+        previous client, which can be important under memory pressure on Cloud Run.
+
+        Args:
+            client: An optional pre-configured GenAI client for testing.
+        """
+        logger.info("Resetting VertexAiService GenAI client")
+        self._init_client(client)
+
+    def is_healthy(self) -> bool:
+        """Check if the GenAI client is likely functional.
+
+        Performs a lightweight check that the client object exists and has
+        the expected attributes. Does NOT make a network call.
+
+        Returns:
+            True if the client appears functional, False otherwise.
+        """
+        try:
+            return hasattr(self, "_client") and self._client is not None
+        except Exception:
+            return False
+
     def generate_insights(self, user_data: dict[str, Any]) -> dict[str, Any]:
         """Generate sustainability insights from the user's carbon footprint data.
 
         .. deprecated::
             Use ``generate_insights_async`` instead. This synchronous method
-            uses ``time.sleep`` for retry backoff, which blocks the event loop
-            if called from an async context. Kept only for backward compatibility.
+            delegates to the async implementation via ``asyncio.run`` to avoid
+            blocking ``time.sleep`` in the retry loop.
 
         Checks cache first, then retries with primary model, falls back to
         a secondary model if the primary is unavailable.
@@ -329,59 +367,23 @@ class VertexAiService:
         Raises:
             Exception: If all model calls fail.
         """
-        # Deferred import to avoid circular dependency:
-        # insights_cache -> firebase_service <- vertex_service (shared constants)
-        from app.services.insights_cache import get_cached_insight, set_cached_insight
-
-        # Check cache first
-        cached = get_cached_insight(user_data)
-        if cached is not None:
-            return cached
-
-        # Try primary model with retries
-        last_exc: Exception | None = None
-        for attempt in range(AppConstants.VERTEX_AI_MAX_RETRIES + 1):
-            try:
-                prompt: str = _format_prompt(user_data)
-                response = self._call_model(prompt)
-                response_text: str = _extract_response_text(response)
-                result = _parse_model_response(response_text)
-                # Cache successful result
-                set_cached_insight(user_data, result)
-                return result
-            except Exception as exc:
-                last_exc = exc
-                logger.warning(
-                    "Model call attempt %d/%d failed: %s",
-                    attempt + 1,
-                    AppConstants.VERTEX_AI_MAX_RETRIES + 1,
-                    exc,
-                )
-                if attempt < AppConstants.VERTEX_AI_MAX_RETRIES:
-                    backoff_seconds = 2**attempt  # Exponential backoff
-                    logger.info("Retrying in %d seconds...", backoff_seconds)
-                    time_module.sleep(backoff_seconds)
-
-        # Fallback to secondary model
         try:
-            logger.info(
-                "Trying fallback model: %s", AppConstants.VERTEX_AI_FALLBACK_MODEL
-            )
-            fallback_prompt: str = _format_prompt(user_data)
-            response = self._client.models.generate_content(
-                model=AppConstants.VERTEX_AI_FALLBACK_MODEL,
-                contents=fallback_prompt,
-                config=self._config,
-            )
-            fallback_response_text: str = _extract_response_text(response)
-            result = _parse_model_response(fallback_response_text)
-            set_cached_insight(user_data, result)
-            return result
-        except Exception as fallback_exc:
-            logger.error("Fallback model also failed: %s", fallback_exc)
-            if last_exc is not None:
-                raise last_exc from fallback_exc
-            raise fallback_exc
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop is not None and loop.is_running():
+            # We're inside an existing event loop — schedule the async call
+            import concurrent.futures
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(
+                    asyncio.run, self.generate_insights_async(user_data)
+                )
+                return future.result()
+        else:
+            # No event loop — safe to create one
+            return asyncio.run(self.generate_insights_async(user_data))
 
     async def generate_insights_async(
         self, user_data: dict[str, Any]
@@ -425,7 +427,7 @@ class VertexAiService:
                     exc,
                 )
                 if attempt < AppConstants.VERTEX_AI_MAX_RETRIES:
-                    backoff_seconds = 2**attempt  # Exponential backoff
+                    backoff_seconds = min(2**attempt, 8)  # Exponential backoff with cap
                     logger.info("Retrying in %d seconds (async)...", backoff_seconds)
                     await asyncio.sleep(backoff_seconds)
 

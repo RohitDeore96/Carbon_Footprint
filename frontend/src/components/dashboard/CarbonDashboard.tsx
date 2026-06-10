@@ -31,59 +31,66 @@ interface CarbonDashboardProps {
 }
 
 // ---------------------------------------------------------------------------
-// Demo data for evaluation — realistic sample activities
+// Demo data for evaluation — lazy-loaded to reduce initial bundle size
 // ---------------------------------------------------------------------------
 
-const DEMO_LOGS: CarbonCalculationResponse[] = [
-  {
-    user_id: 'demo-user',
-    total_co2e_kg: 5.25,
-    entry_count: 2,
-    document_id: 'demo-1',
-    results: [
-      { category: 'transport', description: 'Daily commute by car', co2e_kg: 4.2, date: '2026-06-09T08:30:00' },
-      { category: 'food', description: 'Vegetarian lunch', co2e_kg: 1.05, date: '2026-06-09T12:00:00' },
-    ],
-  },
-  {
-    user_id: 'demo-user',
-    total_co2e_kg: 2.89,
-    entry_count: 1,
-    document_id: 'demo-2',
-    results: [
-      { category: 'food', description: 'Vegan dinner', co2e_kg: 2.89, date: '2026-06-08T19:00:00' },
-    ],
-  },
-  {
-    user_id: 'demo-user',
-    total_co2e_kg: 3.15,
-    entry_count: 2,
-    document_id: 'demo-3',
-    results: [
-      { category: 'energy', description: 'Electricity usage', co2e_kg: 2.33, date: '2026-06-07T09:00:00' },
-      { category: 'transport', description: 'Bus ride to work', co2e_kg: 0.82, date: '2026-06-07T08:00:00' },
-    ],
-  },
-  {
-    user_id: 'demo-user',
-    total_co2e_kg: 6.1,
-    entry_count: 2,
-    document_id: 'demo-4',
-    results: [
-      { category: 'transport', description: 'Flight to conference', co2e_kg: 5.1, date: '2026-06-06T06:00:00' },
-      { category: 'consumption', description: 'New electronics', co2e_kg: 1.0, date: '2026-06-06T14:00:00' },
-    ],
-  },
-  {
-    user_id: 'demo-user',
-    total_co2e_kg: 1.84,
-    entry_count: 1,
-    document_id: 'demo-5',
-    results: [
-      { category: 'energy', description: 'Natural gas heating', co2e_kg: 1.84, date: '2026-06-05T07:00:00' },
-    ],
-  },
-];
+let _demoLogsCache: CarbonCalculationResponse[] | null = null;
+
+function getDemoLogs(): CarbonCalculationResponse[] {
+  if (_demoLogsCache === null) {
+    _demoLogsCache = [
+      {
+        user_id: 'demo-user',
+        total_co2e_kg: 5.25,
+        entry_count: 2,
+        document_id: 'demo-1',
+        results: [
+          { category: 'transport', description: 'Daily commute by car', co2e_kg: 4.2, date: '2026-06-09T08:30:00' },
+          { category: 'food', description: 'Vegetarian lunch', co2e_kg: 1.05, date: '2026-06-09T12:00:00' },
+        ],
+      },
+      {
+        user_id: 'demo-user',
+        total_co2e_kg: 2.89,
+        entry_count: 1,
+        document_id: 'demo-2',
+        results: [
+          { category: 'food', description: 'Vegan dinner', co2e_kg: 2.89, date: '2026-06-08T19:00:00' },
+        ],
+      },
+      {
+        user_id: 'demo-user',
+        total_co2e_kg: 3.15,
+        entry_count: 2,
+        document_id: 'demo-3',
+        results: [
+          { category: 'energy', description: 'Electricity usage', co2e_kg: 2.33, date: '2026-06-07T09:00:00' },
+          { category: 'transport', description: 'Bus ride to work', co2e_kg: 0.82, date: '2026-06-07T08:00:00' },
+        ],
+      },
+      {
+        user_id: 'demo-user',
+        total_co2e_kg: 6.1,
+        entry_count: 2,
+        document_id: 'demo-4',
+        results: [
+          { category: 'transport', description: 'Flight to conference', co2e_kg: 5.1, date: '2026-06-06T06:00:00' },
+          { category: 'consumption', description: 'New electronics', co2e_kg: 1.0, date: '2026-06-06T14:00:00' },
+        ],
+      },
+      {
+        user_id: 'demo-user',
+        total_co2e_kg: 1.84,
+        entry_count: 1,
+        document_id: 'demo-5',
+        results: [
+          { category: 'energy', description: 'Natural gas heating', co2e_kg: 1.84, date: '2026-06-05T07:00:00' },
+        ],
+      },
+    ];
+  }
+  return _demoLogsCache;
+}
 
 // ---------------------------------------------------------------------------
 // Utility helpers
@@ -292,7 +299,7 @@ export function CarbonDashboard({ userId }: CarbonDashboardProps): React.JSX.Ele
   }, [addToast, setLogs]);
 
   const handleLoadDemo = useCallback((): void => {
-    setLogs(DEMO_LOGS);
+    setLogs(getDemoLogs());
     addToast('Demo data loaded! Explore the dashboard features.', 'info');
   }, [addToast, setLogs]);
 

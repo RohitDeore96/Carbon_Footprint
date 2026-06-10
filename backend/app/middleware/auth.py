@@ -11,6 +11,27 @@ their own data, including anonymous users).
 Ensures the Firebase Admin SDK is initialized before attempting
 token verification — handles the common deployment issue where
 the SDK is not initialized at startup.
+
+**Anonymous User Data Persistence**:
+
+The frontend uses Firebase Anonymous Auth, which provides a persistent
+UID stored in localStorage. When the frontend sends this UID as a Bearer
+token, the backend verifies it via Firebase Auth and uses the verified UID
+for all operations — ensuring data continuity across page refreshes and
+browser sessions.
+
+If NO token is provided (e.g., direct API call without Firebase Auth),
+the backend generates a new ephemeral ``anon-{uuid}`` ID for that request
+only. Data created under this ephemeral ID is not recoverable across
+sessions — this is by design for API-only usage.
+
+**Recovery mechanism**: If the Firebase anonymous session expires (default
+30 days) or localStorage is cleared, the user's previously logged data
+remains in Firestore under the old anonymous UID. To recover it, the user
+can sign in with the same Firebase anonymous credentials before the session
+expires, or an admin can look up data by the old UID in the Firestore
+console. Future enhancement: add an account linking flow to merge anonymous
+data into a permanent authenticated account.
 """
 
 import logging

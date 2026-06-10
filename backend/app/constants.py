@@ -17,6 +17,7 @@ class AppConstants:
 
     FIREBASE_COLLECTION_CARBON_LOGS: Final[str] = "carbon_logs"
     FIREBASE_QUERY_LIMIT: Final[int] = 100
+    MAX_ENTRIES_PER_REQUEST: Final[int] = 100  # Safety cap for entries list length
 
     RATE_LIMIT_REQUESTS_PER_MINUTE: Final[int] = 60
     RATE_LIMIT_AI_REQUESTS_PER_MINUTE: Final[int] = 10

@@ -44,6 +44,29 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
     console.error('ErrorBoundary caught an unhandled error:', error, info);
+
+    // Report to external error tracking service if SENTRY_DSN is configured.
+    // In production, initialize Sentry in the app entry point with:
+    //   import * as Sentry from '@sentry/react';
+    //   Sentry.init({ dsn: import.meta.env.VITE_SENTRY_DSN, ... });
+    // Then replace this manual report with Sentry.captureException(error, { contexts: { react: { componentStack: info.componentStack } } }).
+    // For now, use the navigator.sendBeacon API to report to Cloud Error Reporting
+    // as a lightweight, dependency-free alternative that works without blocking the UI.
+    try {
+      const errorReport = {
+        eventTime: new Date().toISOString(),
+        serviceContext: { service: 'carbon-footprint-frontend', version: '1.0.0' },
+        message: `${error.name}: ${error.message}`,
+        context: {
+          reportLocation: { filePath: 'App.tsx', lineNumber: 0, functionName: 'ErrorBoundary.componentDidCatch' },
+          stackTrace: { entries: (error.stack ?? '').split('\n').slice(0, 5).map((line) => ({ line })) },
+        },
+      };
+      const blob = new Blob([JSON.stringify(errorReport)], { type: 'application/json' });
+      navigator.sendBeacon('/api/v1/admin/error-report', blob);
+    } catch {
+      // Non-critical — error reporting should never break the app
+    }
   }
 
   render(): ReactNode {

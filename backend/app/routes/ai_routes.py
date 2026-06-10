@@ -33,7 +33,8 @@ def _get_vertex_service() -> VertexAiService:
     """Return a cached VertexAiService singleton for AI operations.
 
     Uses module-level caching to avoid creating a new GenAI client
-    on every request.
+    on every request. If the client is unhealthy (e.g., after a
+    prolonged connection error), it is automatically reset.
 
     Returns:
         A configured VertexAiService instance.
@@ -41,6 +42,9 @@ def _get_vertex_service() -> VertexAiService:
     global _vertex_service_instance
     if _vertex_service_instance is None:
         _vertex_service_instance = VertexAiService()
+    elif not _vertex_service_instance.is_healthy():
+        logger.warning("VertexAiService client unhealthy, resetting...")
+        _vertex_service_instance.reset_client()
     return _vertex_service_instance
 
 

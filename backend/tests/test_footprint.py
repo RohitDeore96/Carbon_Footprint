@@ -441,7 +441,9 @@ class TestFootprintEndpointHappyPath:
         )
         try:
             response = client.post(
-                "/api/v1/footprint/log", json=valid_transport_payload
+                "/api/v1/footprint/log",
+                json=valid_transport_payload,
+                headers={"X-Requested-With": "XMLHttpRequest"},
             )
             assert response.status_code == 201
             data: dict = response.json()
@@ -467,7 +469,11 @@ class TestFootprintEndpointHappyPath:
             mock_service
         )
         try:
-            response = client.post("/api/v1/footprint/log", json=valid_energy_payload)
+            response = client.post(
+                "/api/v1/footprint/log",
+                json=valid_energy_payload,
+                headers={"X-Requested-With": "XMLHttpRequest"},
+            )
             assert response.status_code == 201
             data: dict = response.json()
             assert data["total_co2e_kg"] == 81.55
@@ -489,7 +495,11 @@ class TestFootprintEndpointHappyPath:
             mock_service
         )
         try:
-            response = client.post("/api/v1/footprint/log", json=valid_diet_payload)
+            response = client.post(
+                "/api/v1/footprint/log",
+                json=valid_diet_payload,
+                headers={"X-Requested-With": "XMLHttpRequest"},
+            )
             assert response.status_code == 201
             data: dict = response.json()
             assert data["total_co2e_kg"] == 20.23
@@ -511,7 +521,11 @@ class TestFootprintEndpointHappyPath:
             mock_service
         )
         try:
-            response = client.post("/api/v1/footprint/log", json=multi_entry_payload)
+            response = client.post(
+                "/api/v1/footprint/log",
+                json=multi_entry_payload,
+                headers={"X-Requested-With": "XMLHttpRequest"},
+            )
             assert response.status_code == 201
             data: dict = response.json()
             assert data["entry_count"] == 3
@@ -535,7 +549,9 @@ class TestFootprintEndpointHappyPath:
         )
         try:
             response = client.post(
-                "/api/v1/footprint/log", json=valid_transport_payload
+                "/api/v1/footprint/log",
+                json=valid_transport_payload,
+                headers={"X-Requested-With": "XMLHttpRequest"},
             )
             assert response.status_code == 201
             data: dict = response.json()
@@ -565,7 +581,11 @@ class TestFootprintEndpointValidation:
             "calculation_date": "2026-06-08T12:00:00",
             "entries": [],
         }
-        response = client.post("/api/v1/footprint/log", json=payload)
+        response = client.post(
+            "/api/v1/footprint/log",
+            json=payload,
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
         assert response.status_code == 422
 
     @pytest.mark.integration
@@ -582,7 +602,11 @@ class TestFootprintEndpointValidation:
                 }
             ],
         }
-        response = client.post("/api/v1/footprint/log", json=payload)
+        response = client.post(
+            "/api/v1/footprint/log",
+            json=payload,
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
         assert response.status_code == 422
 
     @pytest.mark.integration
@@ -599,7 +623,11 @@ class TestFootprintEndpointValidation:
                 }
             ],
         }
-        response = client.post("/api/v1/footprint/log", json=payload)
+        response = client.post(
+            "/api/v1/footprint/log",
+            json=payload,
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
         assert response.status_code == 422
 
     @pytest.mark.integration
@@ -617,7 +645,11 @@ class TestFootprintEndpointValidation:
                 }
             ],
         }
-        response = client.post("/api/v1/footprint/log", json=payload)
+        response = client.post(
+            "/api/v1/footprint/log",
+            json=payload,
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
         assert response.status_code == 422
 
     @pytest.mark.integration
@@ -635,7 +667,11 @@ class TestFootprintEndpointValidation:
                 }
             ],
         }
-        response = client.post("/api/v1/footprint/log", json=payload)
+        response = client.post(
+            "/api/v1/footprint/log",
+            json=payload,
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
         assert response.status_code == 422
 
     @pytest.mark.integration
@@ -655,7 +691,11 @@ class TestFootprintEndpointValidation:
             "calculation_date": "2026-06-08T12:00:00",
             "entries": entries,
         }
-        response = client.post("/api/v1/footprint/log", json=payload)
+        response = client.post(
+            "/api/v1/footprint/log",
+            json=payload,
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
         assert response.status_code == 422
 
 
@@ -685,7 +725,9 @@ class TestFootprintEndpointDatabaseError:
         )
         try:
             response = client.post(
-                "/api/v1/footprint/log", json=valid_transport_payload
+                "/api/v1/footprint/log",
+                json=valid_transport_payload,
+                headers={"X-Requested-With": "XMLHttpRequest"},
             )
             assert response.status_code == 500
             assert "Internal server error" in response.json()["detail"]
@@ -710,7 +752,9 @@ class TestFootprintEndpointDatabaseError:
         )
         try:
             response = client.post(
-                "/api/v1/footprint/log", json=valid_transport_payload
+                "/api/v1/footprint/log",
+                json=valid_transport_payload,
+                headers={"X-Requested-With": "XMLHttpRequest"},
             )
             assert response.status_code == 500
             assert "Internal server error" in response.json()["detail"]
@@ -735,7 +779,9 @@ class TestFootprintEndpointDatabaseError:
         )
         try:
             response = client.post(
-                "/api/v1/footprint/log", json=valid_transport_payload
+                "/api/v1/footprint/log",
+                json=valid_transport_payload,
+                headers={"X-Requested-With": "XMLHttpRequest"},
             )
             assert response.status_code == 500
             assert "Internal server error" in response.json()["detail"]

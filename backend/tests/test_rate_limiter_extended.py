@@ -398,9 +398,13 @@ class TestRateLimiterMiddlewareDispatch:
 
         ai_limit = AppConstants.RATE_LIMIT_AI_REQUESTS_PER_MINUTE
         for _ in range(ai_limit):
-            client.post("/api/v1/ai/insights")
+            client.post(
+                "/api/v1/ai/insights", headers={"X-Requested-With": "XMLHttpRequest"}
+            )
 
-        response = client.post("/api/v1/ai/insights")
+        response = client.post(
+            "/api/v1/ai/insights", headers={"X-Requested-With": "XMLHttpRequest"}
+        )
         assert response.status_code == 429
 
 

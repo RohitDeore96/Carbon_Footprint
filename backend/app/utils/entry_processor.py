@@ -80,7 +80,7 @@ def _process_consumption_entry(entry: ActivityEntry) -> float:
     """
     metrics = entry.consumption
     return (
-        calculate_consumption_emission(metrics.item_type, metrics.quantity)
+        calculate_consumption_emission(metrics.item_type.value, metrics.quantity)
         if metrics
         else 0.0
     )
