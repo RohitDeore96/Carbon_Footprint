@@ -124,7 +124,7 @@ export default function OnboardingModal(): React.JSX.Element | null {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [visible]);
+  }, [visible, completeOnboarding]);
 
   const handleNext = useCallback((): void => {
     if (currentStep < STEPS.length - 1) {
@@ -140,7 +140,7 @@ export default function OnboardingModal(): React.JSX.Element | null {
 
   const handleSkip = useCallback((): void => {
     completeOnboarding();
-  }, []);
+  }, [completeOnboarding]);
 
   const isLastStep = currentStep === STEPS.length - 1;
   const step = STEPS[currentStep];

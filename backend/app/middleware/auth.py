@@ -11,7 +11,6 @@ import uuid
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from firebase_admin import auth as firebase_auth
-from firebase_admin.exceptions import FirebaseError
 
 logger = logging.getLogger(__name__)
 

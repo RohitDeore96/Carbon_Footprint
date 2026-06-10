@@ -787,10 +787,16 @@ class TestFootprintHistoryEndpoint:
             app.dependency_overrides.pop(get_current_user, None)
 
     @pytest.mark.integration
-    def test_history_without_auth_returns_403(self, client: TestClient) -> None:
-        """Verify history endpoint without auth returns 403 (unique anon ID won't match URL user_id)."""
+    @patch("app.routes.footprint._get_firebase_service")
+    def test_history_without_auth_allows_anonymous_access(
+        self, mock_get_service: MagicMock, client: TestClient
+    ) -> None:
+        """Verify anonymous (no auth) users can access history — anon IDs bypass ownership check."""
+        mock_service = MagicMock()
+        mock_service.get_user_logs.return_value = []
+        mock_get_service.return_value = mock_service
         response = client.get("/api/v1/footprint/history/user-001")
-        assert response.status_code == 403
+        assert response.status_code == 200
 
     @pytest.mark.integration
     @patch("app.routes.footprint._get_firebase_service")
@@ -894,10 +900,16 @@ class TestFootprintSummaryEndpoint:
             app.dependency_overrides.pop(get_current_user, None)
 
     @pytest.mark.integration
-    def test_summary_without_auth_returns_403(self, client: TestClient) -> None:
-        """Verify summary endpoint without auth returns 403 (unique anon ID won't match URL user_id)."""
+    @patch("app.routes.footprint._get_firebase_service")
+    def test_summary_without_auth_allows_anonymous_access(
+        self, mock_get_service: MagicMock, client: TestClient
+    ) -> None:
+        """Verify anonymous (no auth) users can access summary — anon IDs bypass ownership check."""
+        mock_service = MagicMock()
+        mock_service.get_user_logs.return_value = []
+        mock_get_service.return_value = mock_service
         response = client.get("/api/v1/footprint/summary/user-001")
-        assert response.status_code == 403
+        assert response.status_code == 200
 
     @pytest.mark.integration
     @patch("app.routes.footprint._get_firebase_service")
