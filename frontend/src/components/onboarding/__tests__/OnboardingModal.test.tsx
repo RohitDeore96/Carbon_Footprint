@@ -187,39 +187,39 @@ describe('OnboardingModal', () => {
   describe('progress dots', () => {
     it('shows 3 progress dots', () => {
       render(<OnboardingModal />);
-      const dots = screen.getAllByRole('tab');
+      const dots = screen.getAllByRole('presentation');
       expect(dots).toHaveLength(3);
     });
 
     it('progress dots show correct step — step 1 active', () => {
       render(<OnboardingModal />);
-      const dots = screen.getAllByRole('tab');
-      expect(dots[0]).toHaveAttribute('aria-selected', 'true');
-      expect(dots[1]).toHaveAttribute('aria-selected', 'false');
-      expect(dots[2]).toHaveAttribute('aria-selected', 'false');
+      const dots = screen.getAllByRole('presentation');
+      expect(dots[0]).toHaveAttribute('aria-label', 'Step 1 of 3 (current)');
+      expect(dots[1]).toHaveAttribute('aria-label', 'Step 2 of 3');
+      expect(dots[2]).toHaveAttribute('aria-label', 'Step 3 of 3');
     });
 
     it('progress dots update when navigating to step 2', () => {
       render(<OnboardingModal />);
       fireEvent.click(screen.getByText('Next'));
 
-      const dots = screen.getAllByRole('tab');
-      expect(dots[0]).toHaveAttribute('aria-selected', 'false');
-      expect(dots[1]).toHaveAttribute('aria-selected', 'true');
-      expect(dots[2]).toHaveAttribute('aria-selected', 'false');
+      const dots = screen.getAllByRole('presentation');
+      expect(dots[0]).toHaveAttribute('aria-label', 'Step 1 of 3');
+      expect(dots[1]).toHaveAttribute('aria-label', 'Step 2 of 3 (current)');
+      expect(dots[2]).toHaveAttribute('aria-label', 'Step 3 of 3');
     });
 
     it('progress dots have step labels', () => {
       render(<OnboardingModal />);
-      const dots = screen.getAllByRole('tab');
-      expect(dots[0]).toHaveAttribute('aria-label', 'Step 1 of 3');
-      expect(dots[1]).toHaveAttribute('aria-label', 'Step 2 of 3');
-      expect(dots[2]).toHaveAttribute('aria-label', 'Step 3 of 3');
+      const dots = screen.getAllByRole('presentation');
+      expect(dots[0]).toHaveAttribute('aria-label', expect.stringContaining('Step 1 of 3'));
+      expect(dots[1]).toHaveAttribute('aria-label', expect.stringContaining('Step 2 of 3'));
+      expect(dots[2]).toHaveAttribute('aria-label', expect.stringContaining('Step 3 of 3'));
     });
 
     it('active dot has active class', () => {
       render(<OnboardingModal />);
-      const dots = screen.getAllByRole('tab');
+      const dots = screen.getAllByRole('presentation');
       expect(dots[0].classList.contains('onboarding-dot--active')).toBe(true);
     });
   });

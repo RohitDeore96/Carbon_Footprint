@@ -2,6 +2,9 @@
 
 Caches Gemini responses using a hash of the input data as the key,
 with a configurable TTL (default 24 hours).
+
+Uses ``firebase_admin.firestore`` directly instead of importing a private
+helper from firebase_service, reducing module coupling.
 """
 
 import hashlib
@@ -10,10 +13,10 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import firebase_admin
+from firebase_admin import firestore as firebase_firestore
 from google.cloud.firestore_v1.client import Client as FirestoreClient
 from google.cloud.firestore_v1.document import DocumentSnapshot
-
-from app.services.firebase_service import _get_firestore_client
 
 logger = logging.getLogger(__name__)
 
@@ -35,8 +38,19 @@ def _compute_cache_key(user_data: dict[str, Any]) -> str:
 
 
 def _get_db() -> FirestoreClient:
-    """Return a shared Firestore client via the centralised firebase_service module."""
-    return _get_firestore_client()
+    """Return a shared Firestore client via firebase_admin directly.
+
+    Initializes the Firebase app if needed, then returns the firestore client.
+    This avoids coupling to the private ``_get_firestore_client`` helper in
+    firebase_service.
+    """
+    try:
+        firebase_admin.get_app()
+    except ValueError:
+        from firebase_admin import credentials
+
+        firebase_admin.initialize_app(credentials.ApplicationDefault())
+    return firebase_firestore.client()
 
 
 def get_cached_insight(
@@ -104,3 +118,85 @@ def set_cached_insight(
         logger.info("Cached insight key=%s", key[:8])
     except Exception as exc:
         logger.warning("Cache write failed, non-critical: %s", exc)
+
+
+def cleanup_expired_cache_entries(
+    ttl_hours: int = DEFAULT_CACHE_TTL_HOURS,
+    batch_size: int = 100,
+) -> int:
+    """Delete expired entries from the ai_insights_cache Firestore collection.
+
+    This function should be called periodically (e.g., via a Cloud Scheduler
+    job or a lightweight cron task) to prevent unbounded cache growth.
+
+    Documents are considered expired when their ``cached_at`` timestamp
+    plus ``ttl_hours`` is older than the current UTC time.
+
+    Args:
+        ttl_hours: The TTL in hours used to determine expiry. Defaults to
+            DEFAULT_CACHE_TTL_HOURS (24).
+        batch_size: Maximum number of documents to delete in a single call.
+            Firestore batch writes support up to 500 operations.
+
+    Returns:
+        The number of expired documents deleted.
+    """
+    try:
+        db = _get_db()
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=ttl_hours)
+
+        # Query all cache documents — since cached_at is not always a native
+        # Firestore timestamp (it may be stored as an ISO string), we fetch
+        # and filter in Python to avoid index requirements.
+        docs = db.collection(CACHE_COLLECTION).limit(batch_size).stream()
+
+        deleted_count = 0
+        batch = db.batch()
+        ops_in_batch = 0
+
+        for doc in docs:
+            data = doc.to_dict()
+            if data is None:
+                continue
+
+            cached_at = data.get("cached_at")
+            if cached_at is None:
+                continue
+
+            # Handle both datetime objects and ISO string representations
+            if isinstance(cached_at, str):
+                try:
+                    cached_at = datetime.fromisoformat(cached_at)
+                except (ValueError, TypeError):
+                    continue
+
+            if isinstance(cached_at, datetime):
+                # Ensure timezone-aware comparison
+                if cached_at.tzinfo is None:
+                    cached_at = cached_at.replace(tzinfo=timezone.utc)
+                if cached_at < cutoff:
+                    batch.delete(doc.reference)
+                    ops_in_batch += 1
+                    deleted_count += 1
+
+                    # Firestore batches support max 500 operations
+                    if ops_in_batch >= 499:
+                        batch.commit()
+                        batch = db.batch()
+                        ops_in_batch = 0
+
+        # Commit any remaining deletions
+        if ops_in_batch > 0:
+            batch.commit()
+
+        if deleted_count > 0:
+            logger.info(
+                "Cleaned up %d expired cache entries from %s",
+                deleted_count,
+                CACHE_COLLECTION,
+            )
+        return deleted_count
+
+    except Exception as exc:
+        logger.warning("Cache cleanup failed, non-critical: %s", exc)
+        return 0

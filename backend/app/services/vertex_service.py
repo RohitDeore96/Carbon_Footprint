@@ -353,7 +353,9 @@ class VertexAiService:
                     exc,
                 )
                 if attempt < AppConstants.VERTEX_AI_MAX_RETRIES:
-                    time_module.sleep(1 * (attempt + 1))  # Simple backoff
+                    backoff_seconds = 1 * (attempt + 1)
+                    logger.info("Retrying in %d seconds...", backoff_seconds)
+                    time_module.sleep(backoff_seconds)
 
         # Fallback to secondary model
         try:

@@ -4,6 +4,7 @@ Dispatches each entry to the appropriate single-responsibility calculator based 
 its category, producing a flat list of emission results.
 """
 
+import logging
 from collections.abc import Callable
 
 from app.schemas import ActivityEntry, EmissionResult
@@ -13,6 +14,8 @@ from app.utils.carbon_calculator import (
     calculate_energy_emission,
     calculate_transport_emission,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _process_transport_entry(entry: ActivityEntry) -> float:
@@ -102,7 +105,17 @@ def compute_entry_emission(entry: ActivityEntry) -> EmissionResult:
     """
     category_key: str = entry.category.value
     processor = _PROCESSOR_DISPATCH.get(category_key)
-    co2e_kg: float = processor(entry) if processor is not None else 0.0
+    if processor is not None:
+        co2e_kg: float = processor(entry)
+    else:
+        logger.warning(
+            "Unknown activity category '%s' for entry '%s'; "
+            "defaulting to 0.0 CO2e. Known categories: %s",
+            category_key,
+            entry.description,
+            list(_PROCESSOR_DISPATCH.keys()),
+        )
+        co2e_kg = 0.0
     return _build_emission_result(entry, co2e_kg)
 
 

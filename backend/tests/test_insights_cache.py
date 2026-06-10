@@ -4,6 +4,7 @@ Tests cover:
 - _compute_cache_key helper function
 - get_cached_insight (cache hit, cache miss, expired, error)
 - set_cached_insight (success, error)
+- cleanup_expired_cache_entries (success, error)
 """
 
 from datetime import datetime, timedelta, timezone
@@ -14,6 +15,7 @@ import pytest
 from app.services.insights_cache import (
     CACHE_COLLECTION,
     _compute_cache_key,
+    cleanup_expired_cache_entries,
     get_cached_insight,
     set_cached_insight,
 )
@@ -206,3 +208,86 @@ class TestSetCachedInsight:
         assert "insight" in doc_data
         assert "cache_key_prefix" in doc_data
         assert doc_data["insight"] == insight
+
+
+class TestCleanupExpiredCacheEntries:
+    """Unit tests for cleanup_expired_cache_entries."""
+
+    @pytest.mark.unit
+    @patch("app.services.insights_cache._get_db")
+    def test_cleanup_deletes_expired_entries(self, mock_get_db: MagicMock) -> None:
+        """Verify expired cache entries are deleted."""
+        expired_time = datetime.now(tz=timezone.utc) - timedelta(hours=48)
+        mock_doc = MagicMock()
+        mock_doc.to_dict.return_value = {
+            "cached_at": expired_time,
+            "insight": {"insight": "old"},
+        }
+        mock_doc.reference = MagicMock()
+
+        mock_db = MagicMock()
+        mock_db.collection.return_value.limit.return_value.stream.return_value = [
+            mock_doc
+        ]
+        mock_batch = MagicMock()
+        mock_db.batch.return_value = mock_batch
+        mock_get_db.return_value = mock_db
+
+        deleted = cleanup_expired_cache_entries(ttl_hours=24)
+        assert deleted == 1
+        mock_batch.delete.assert_called_once_with(mock_doc.reference)
+        mock_batch.commit.assert_called_once()
+
+    @pytest.mark.unit
+    @patch("app.services.insights_cache._get_db")
+    def test_cleanup_keeps_non_expired_entries(self, mock_get_db: MagicMock) -> None:
+        """Verify non-expired cache entries are kept."""
+        recent_time = datetime.now(tz=timezone.utc) - timedelta(hours=1)
+        mock_doc = MagicMock()
+        mock_doc.to_dict.return_value = {
+            "cached_at": recent_time,
+            "insight": {"insight": "recent"},
+        }
+
+        mock_db = MagicMock()
+        mock_db.collection.return_value.limit.return_value.stream.return_value = [
+            mock_doc
+        ]
+        mock_batch = MagicMock()
+        mock_db.batch.return_value = mock_batch
+        mock_get_db.return_value = mock_db
+
+        deleted = cleanup_expired_cache_entries(ttl_hours=24)
+        assert deleted == 0
+        mock_batch.delete.assert_not_called()
+
+    @pytest.mark.unit
+    @patch("app.services.insights_cache._get_db")
+    def test_cleanup_handles_iso_string_cached_at(self, mock_get_db: MagicMock) -> None:
+        """Verify cleanup handles cached_at stored as ISO string."""
+        expired_time = datetime.now(tz=timezone.utc) - timedelta(hours=48)
+        mock_doc = MagicMock()
+        mock_doc.to_dict.return_value = {
+            "cached_at": expired_time.isoformat(),
+            "insight": {"insight": "old"},
+        }
+        mock_doc.reference = MagicMock()
+
+        mock_db = MagicMock()
+        mock_db.collection.return_value.limit.return_value.stream.return_value = [
+            mock_doc
+        ]
+        mock_batch = MagicMock()
+        mock_db.batch.return_value = mock_batch
+        mock_get_db.return_value = mock_db
+
+        deleted = cleanup_expired_cache_entries(ttl_hours=24)
+        assert deleted == 1
+
+    @pytest.mark.unit
+    @patch("app.services.insights_cache._get_db")
+    def test_cleanup_exception_returns_zero(self, mock_get_db: MagicMock) -> None:
+        """Verify cleanup returns 0 when an exception occurs."""
+        mock_get_db.side_effect = Exception("Firestore unavailable")
+        deleted = cleanup_expired_cache_entries()
+        assert deleted == 0

@@ -5,7 +5,6 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from app.constants import AppConstants
 from app.middleware.auth import get_current_user
 from app.schemas import (
     CarbonCalculationRequest,
@@ -50,27 +49,25 @@ def _serialize_results(results: list[EmissionResult]) -> list[dict[str, object]]
 def _verify_user_access(authenticated_uid: str, requested_user_id: str) -> str:
     """Verify the authenticated user has access to the requested user's data.
 
-    Authenticated users can only access their own data.
-    Anonymous users can access any user_id (no token to verify against).
+    All users (including anonymous) can only access their own data.
+    Anonymous users receive a unique ID per session, ensuring isolation.
 
     Args:
-        authenticated_uid: UID from Firebase ID token, or AppConstants.ANONYMOUS_USER_ID.
+        authenticated_uid: UID from Firebase ID token, or a unique anonymous ID.
         requested_user_id: The user_id from the URL path parameter.
 
     Returns:
         The effective user_id to use for the query.
 
     Raises:
-        HTTPException: 403 if authenticated user tries to access another user's data.
+        HTTPException: 403 if the user tries to access another user's data.
     """
-    if authenticated_uid != AppConstants.ANONYMOUS_USER_ID:
-        if authenticated_uid != requested_user_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied: authenticated users can only access their own data",
-            )
-        return authenticated_uid
-    return requested_user_id
+    if authenticated_uid != requested_user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: users can only access their own data",
+        )
+    return authenticated_uid
 
 
 @router.post(
@@ -84,12 +81,12 @@ async def log_footprint(
 ) -> CarbonCalculationResponse:
     """Ingest, calculate, and persist carbon footprint activity entries.
 
-    If a valid Firebase ID token is provided in the Authorization header,
-    the authenticated UID overrides the user_id in the payload for security.
+    The authenticated UID always overrides the user_id in the payload
+    for security, preventing users from writing data under another identity.
 
     Args:
         payload: Validated carbon calculation request with activity entries.
-        authenticated_uid: UID from Firebase ID token, or "anonymous" if none provided.
+        authenticated_uid: UID from Firebase ID token, or a unique anonymous ID.
 
     Returns:
         A response containing individual results, total CO2e, and Firestore document ID.
@@ -97,11 +94,8 @@ async def log_footprint(
     Raises:
         HTTPException: 500 if the database write fails.
     """
-    effective_user_id = (
-        authenticated_uid
-        if authenticated_uid != AppConstants.ANONYMOUS_USER_ID
-        else payload.user_id
-    )
+    # Always use the authenticated UID for security — never trust client-supplied user_id
+    effective_user_id = authenticated_uid
     results = process_all_entries(payload.entries)
     total_co2e_kg: float = sum_total_emissions(results)
     document_id: str = await asyncio.to_thread(
@@ -123,13 +117,13 @@ async def get_footprint_history(
 ) -> dict:
     """Retrieve a user's carbon footprint history from Firestore.
 
-    Authenticated users can only access their own data. Anonymous requests
-    use the user_id from the URL path parameter.
+    All users (including anonymous) can only access their own data.
+    Anonymous users receive a unique ID per session, ensuring isolation.
 
     Args:
         user_id: The unique identifier of the user.
         period_days: Number of days to look back (default 30, max 365).
-        authenticated_uid: UID from Firebase ID token, or "anonymous" if none provided.
+        authenticated_uid: UID from Firebase ID token, or a unique anonymous ID.
 
     Returns:
         A dictionary containing the user's carbon log entries and count.
@@ -173,13 +167,13 @@ async def get_footprint_summary(
 ) -> dict:
     """Retrieve an aggregated carbon footprint summary for a user.
 
-    Authenticated users can only access their own data. Anonymous requests
-    use the user_id from the URL path parameter.
+    All users (including anonymous) can only access their own data.
+    Anonymous users receive a unique ID per session, ensuring isolation.
 
     Args:
         user_id: The unique identifier of the user.
         period_days: Number of days to look back (default 30, max 365).
-        authenticated_uid: UID from Firebase ID token, or "anonymous" if none provided.
+        authenticated_uid: UID from Firebase ID token, or a unique anonymous ID.
 
     Returns:
         A dictionary containing the total CO2e, entry count, and category breakdown.

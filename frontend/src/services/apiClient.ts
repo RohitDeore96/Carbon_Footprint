@@ -15,6 +15,7 @@
 import axios, { AxiosError, type AxiosInstance, type AxiosResponse } from 'axios';
 import { getAuth } from 'firebase/auth';
 import { APP_CONSTANTS } from '../constants/app.constants';
+import type { ActivityCategory } from '../types/activity';
 
 // ---------------------------------------------------------------------------
 // Request / Response Interfaces (mirror backend Pydantic schemas exactly)
@@ -40,7 +41,7 @@ export interface ConsumptionMetrics {
   readonly quantity: number;
 }
 
-export type ActivityCategory = 'transport' | 'energy' | 'food' | 'consumption';
+export type { ActivityCategory };
 
 export interface ActivityEntry {
   readonly category: ActivityCategory;
@@ -138,6 +139,22 @@ function buildApiError(err: AxiosError): ApiError {
 }
 
 // ---------------------------------------------------------------------------
+// Runtime API Response Validation
+// ---------------------------------------------------------------------------
+
+/**
+ * Validate that an API response matches the expected shape.
+ * Returns true if the response has the expected properties.
+ */
+function validateResponse<T>(
+  data: unknown,
+  requiredKeys: readonly string[],
+): data is T {
+  if (typeof data !== 'object' || data === null) return false;
+  return requiredKeys.every((key) => key in data);
+}
+
+// ---------------------------------------------------------------------------
 // Axios Instance with Auth Interceptor
 // ---------------------------------------------------------------------------
 
@@ -180,6 +197,9 @@ async function postFootprintLog(
       '/api/v1/footprint/log',
       payload,
     );
+    if (!validateResponse<CarbonCalculationResponse>(response.data, ['user_id', 'total_co2e_kg', 'results', 'document_id'] as const)) {
+      return { success: false, error: { code: 500, message: 'Invalid response format from server' } };
+    }
     return { success: true, data: response.data };
   } catch (err) {
     return { success: false, error: buildApiError(err as AxiosError) };

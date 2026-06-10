@@ -4,7 +4,7 @@
  * Exposes requestInsights via React.forwardRef for auto-triggering from parent.
  */
 
-import React, { useState, useCallback, useImperativeHandle, forwardRef } from 'react';
+import React, { useState, useCallback, useImperativeHandle, forwardRef, useRef, useEffect } from 'react';
 import { apiClient, type InsightsResponse, type ApiError, type EmissionSummaryEntry } from '../../services/apiClient';
 import { APP_CONSTANTS } from '../../constants/app.constants';
 
@@ -162,10 +162,18 @@ export const InsightCoach = forwardRef<InsightCoachHandle, InsightCoachProps>(
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [insights, setInsights] = useState<InsightsResponse | null>(null);
     const [error, setError] = useState<ApiError | null>(null);
+    const abortControllerRef = useRef<AbortController | null>(null);
 
     const hasData: boolean = emissionBreakdown.length > 0;
 
     const requestInsights = useCallback(async (): Promise<void> => {
+      // Abort any previous in-flight request
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
       setIsLoading(true);
       setError(null);
       const result = await apiClient.postInsightsRequest({
@@ -174,6 +182,10 @@ export const InsightCoach = forwardRef<InsightCoachHandle, InsightCoachProps>(
         period_days: periodDays,
         emission_breakdown: emissionBreakdown,
       });
+
+      // Ignore result if request was aborted
+      if (controller.signal.aborted) return;
+
       setIsLoading(false);
       if (result.success) {
         setInsights(result.data);
@@ -181,6 +193,15 @@ export const InsightCoach = forwardRef<InsightCoachHandle, InsightCoachProps>(
         setError(result.error);
       }
     }, [userId, totalCo2eKg, periodDays, emissionBreakdown]);
+
+    // Cleanup on unmount
+    useEffect(() => {
+      return () => {
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+        }
+      };
+    }, []);
 
     // Expose requestInsights to parent via ref
     useImperativeHandle(ref, () => ({ requestInsights }), [requestInsights]);

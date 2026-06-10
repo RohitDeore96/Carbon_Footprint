@@ -5,7 +5,7 @@
  * toast notifications, auto-generated insights, and conversational AI chat.
  */
 
-import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import React, { useCallback, useEffect, useRef, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LineChart, Line } from 'recharts';
 import { LogActivityForm } from '../footprint/LogActivityForm';
 import { InsightCoach } from '../coach/InsightCoach';
@@ -14,14 +14,12 @@ import { ChatCoach } from '../coach/ChatCoach';
 import { EmissionGoals } from '../goals/EmissionGoals';
 import { DataExport } from '../export/DataExport';
 import { useToast } from '../ui/Toast';
-import {
-  apiClient,
-} from '../../services/apiClient';
 import type {
   CarbonCalculationResponse,
   EmissionSummaryEntry,
 } from '../../services/apiClient';
 import { APP_CONSTANTS } from '../../constants/app.constants';
+import { useFootprintData } from '../../hooks/useFootprintData';
 
 // ---------------------------------------------------------------------------
 // Prop interfaces
@@ -269,7 +267,13 @@ const TrendChart = React.memo(function TrendChart({
       target: PARIS_TARGET,
     }));
 
-  if (chartData.length < 2) return <></>;
+  if (chartData.length < 2) {
+    return (
+      <p className="trend-chart-insufficient" role="status">
+        Log at least 2 days of activities to see your emission trend.
+      </p>
+    );
+  }
 
   return (
     <div className="emission-chart-container" role="img" aria-label="Daily emission trend chart with benchmark comparison">
@@ -352,26 +356,10 @@ const BenchmarkComparison = React.memo(function BenchmarkComparison({
 // ---------------------------------------------------------------------------
 
 export function CarbonDashboard({ userId }: CarbonDashboardProps): React.JSX.Element {
-  const [logs, setLogs] = useState<CarbonCalculationResponse[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(true);
+  const { logs, setLogs, historyLoading, historyError } = useFootprintData(userId);
   const autoInsightTriggeredRef = useRef(false);
   const insightCoachRef = useRef<InsightCoachHandle>(null);
   const { addToast } = useToast();
-
-  // Fetch history on mount so page refresh doesn't lose data
-  useEffect(() => {
-    let cancelled = false;
-    apiClient.getFootprintHistory(userId, APP_CONSTANTS.DEFAULT_HISTORY_PERIOD_DAYS).then((result) => {
-      if (!cancelled && result.success) {
-        setLogs([...result.data.logs]);
-      }
-    }).catch((err: unknown) => {
-      console.error('Failed to load footprint history:', err);
-    }).finally(() => {
-      if (!cancelled) setHistoryLoading(false);
-    });
-    return () => { cancelled = true; };
-  }, [userId]);
 
   const handleLogSuccess = useCallback((result: CarbonCalculationResponse): void => {
     setLogs((prev) => [result, ...prev]);
@@ -379,7 +367,7 @@ export function CarbonDashboard({ userId }: CarbonDashboardProps): React.JSX.Ele
       `Activity logged successfully! ${result.total_co2e_kg} kg CO₂e`,
       'success',
     );
-  }, [addToast]);
+  }, [addToast, setLogs]);
 
   // Auto-generate AI insights after the first activity log
   useEffect(() => {
@@ -473,6 +461,10 @@ export function CarbonDashboard({ userId }: CarbonDashboardProps): React.JSX.Ele
             {historyLoading ? (
               <div role="status" aria-busy="true" className="loading-indicator">
                 Loading activity history...
+              </div>
+            ) : historyError ? (
+              <div className="history-error" role="alert" aria-live="assertive">
+                <p>{historyError}</p>
               </div>
             ) : (
               <ActivityLogList logs={logs} />

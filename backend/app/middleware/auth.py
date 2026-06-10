@@ -1,18 +1,19 @@
 """Firebase Authentication middleware for verifying ID tokens.
 
-Provides an optional FastAPI dependency that verifies Firebase ID tokens
-from the Authorization header. Falls back to allowing unauthenticated
-requests for backward compatibility.
+Provides a FastAPI dependency that verifies Firebase ID tokens
+from the Authorization header. Generates a unique per-request
+anonymous ID when no token is provided, ensuring data isolation
+even for unauthenticated users.
 """
+
+import uuid
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from firebase_admin import auth as firebase_auth
+from firebase_admin.exceptions import FirebaseError
 
-from app.constants import AppConstants
 
-# Bearer token scheme — auto_error=False means the dependency
-# won't raise if no Authorization header is present.
 _bearer_scheme = HTTPBearer(auto_error=False)
 
 
@@ -21,29 +22,34 @@ async def get_current_user(
 ) -> str:
     """Verify Firebase ID token and return the user UID.
 
-    If no Authorization header is provided, returns the anonymous sentinel
-    value for backward compatibility with unauthenticated requests.
+    If no Authorization header is provided, generates a unique anonymous
+    ID for this request to ensure data isolation. Each unauthenticated
+    request gets a distinct ID, preventing cross-user data access.
 
     Args:
         credentials: Optional Bearer token credentials extracted by FastAPI.
 
     Returns:
-        The Firebase user UID string, or AppConstants.ANONYMOUS_USER_ID
-        if no token is provided.
+        The Firebase user UID string, or a unique anonymous ID.
 
     Raises:
         HTTPException: 401 if the provided token is invalid or expired.
     """
     if credentials is None:
-        # Allow unauthenticated requests for backward compatibility
-        return AppConstants.ANONYMOUS_USER_ID
+        # Generate a unique anonymous ID per request for data isolation
+        return f"anon-{uuid.uuid4().hex[:12]}"
 
     try:
         token = credentials.credentials
         decoded = firebase_auth.verify_id_token(token)
         return decoded["uid"]
-    except Exception:
+    except FirebaseError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired authentication token",
-        ) from None
+            detail=f"Invalid or expired authentication token: {exc.code}",
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Malformed authentication token",
+        ) from exc

@@ -20,6 +20,10 @@ logger = logging.getLogger(__name__)
 
 router: APIRouter = APIRouter(prefix="/api/v1/ai", tags=["ai"])
 
+# Rate limiting: The RateLimiterMiddleware (app/main.py) enforces a global
+# per-IP limit of 60 requests/minute with a burst allowance of 10. This
+# protects all AI endpoints from abuse without requiring per-route logic.
+
 # Module-level singleton — created once per process, not per request
 _vertex_service_instance: VertexAiService | None = None
 

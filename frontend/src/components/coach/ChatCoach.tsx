@@ -75,6 +75,7 @@ export function ChatCoach({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -84,6 +85,13 @@ export function ChatCoach({
   const sendMessage = async (): Promise<void> => {
     const trimmed = inputValue.trim();
     if (trimmed === '' || isLoading) return;
+
+    // Abort any previous in-flight request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     const userMessage: ChatMessage = { role: 'user', content: trimmed };
     setMessages((prev) => [...prev, userMessage]);
@@ -106,6 +114,9 @@ export function ChatCoach({
       conversation_history: conversationHistory,
     });
 
+    // Ignore result if request was aborted
+    if (controller.signal.aborted) return;
+
     setIsLoading(false);
     if (result.success) {
       const modelMessage: ChatMessage = {
@@ -118,6 +129,15 @@ export function ChatCoach({
       setError(result.error);
     }
   };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
     if (e.key === 'Enter' && !e.shiftKey) {

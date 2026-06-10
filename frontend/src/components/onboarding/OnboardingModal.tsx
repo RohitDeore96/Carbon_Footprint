@@ -2,7 +2,7 @@
  * OnboardingModal — A 3-step welcome modal for first-time users.
  * Tracks completion via localStorage key 'carbon-footprint-onboarding-complete'.
  * Only renders when the key does not exist.
- * Implements basic focus trapping and accessibility attributes.
+ * Implements focus trapping, Escape key dismissal, and accessibility attributes.
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 
@@ -52,6 +52,14 @@ export default function OnboardingModal(): React.JSX.Element | null {
   const modalRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
 
+  // Complete onboarding callback — defined BEFORE effects that use it
+  const completeOnboarding = useCallback((): void => {
+    localStorage.setItem(STORAGE_KEY, 'true');
+    setVisible(false);
+    // Restore previous focus
+    previousFocusRef.current?.focus();
+  }, []);
+
   // Store previously focused element & auto-focus modal
   useEffect(() => {
     if (visible) {
@@ -63,6 +71,20 @@ export default function OnboardingModal(): React.JSX.Element | null {
       return () => clearTimeout(timer);
     }
   }, [visible]);
+
+  // Handle Escape key for dismissal
+  useEffect(() => {
+    if (!visible) return;
+
+    function handleEscape(e: KeyboardEvent): void {
+      if (e.key === 'Escape') {
+        completeOnboarding();
+      }
+    }
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [visible, completeOnboarding]);
 
   // Basic focus trap
   useEffect(() => {
@@ -98,13 +120,6 @@ export default function OnboardingModal(): React.JSX.Element | null {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [visible]);
-
-  const completeOnboarding = useCallback((): void => {
-    localStorage.setItem(STORAGE_KEY, 'true');
-    setVisible(false);
-    // Restore previous focus
-    previousFocusRef.current?.focus();
-  }, []);
 
   const handleNext = useCallback((): void => {
     if (currentStep < STEPS.length - 1) {
@@ -150,14 +165,13 @@ export default function OnboardingModal(): React.JSX.Element | null {
         </div>
 
         {/* Progress dots */}
-        <div className="onboarding-dots" role="tablist" aria-label="Onboarding progress">
+        <div className="onboarding-dots" aria-label="Onboarding progress">
           {STEPS.map((_, index) => (
             <span
               key={index}
               className={`onboarding-dot ${index === currentStep ? 'onboarding-dot--active' : ''} ${index < currentStep ? 'onboarding-dot--completed' : ''}`}
-              role="tab"
-              aria-selected={index === currentStep}
-              aria-label={`Step ${index + 1} of ${STEPS.length}`}
+              role="presentation"
+              aria-label={`Step ${index + 1} of ${STEPS.length}${index === currentStep ? ' (current)' : ''}`}
             />
           ))}
         </div>

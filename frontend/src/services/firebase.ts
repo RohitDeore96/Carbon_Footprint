@@ -16,6 +16,18 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID || '',
 };
 
+// Validate required Firebase config before initialization
+const missingFields = Object.entries(firebaseConfig)
+  .filter(([, value]) => !value)
+  .map(([key]) => key);
+
+if (missingFields.length > 0) {
+  console.warn(
+    `Firebase config missing: ${missingFields.join(', ')}. ` +
+    'Set VITE_FIREBASE_* environment variables for full functionality.'
+  );
+}
+
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
@@ -24,8 +36,14 @@ export const auth = getAuth(app);
  * Falls back to a generated ID if sign-in fails.
  */
 export async function signInAnonymouslyAndGetUser(): Promise<{ uid: string }> {
-  const credential = await signInAnonymously(auth);
-  return { uid: credential.user.uid };
+  try {
+    const credential = await signInAnonymously(auth);
+    return { uid: credential.user.uid };
+  } catch (error) {
+    console.warn('Firebase anonymous sign-in failed, using fallback ID:', error);
+    const fallbackUid = `fallback-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    return { uid: fallbackUid };
+  }
 }
 
 /**
