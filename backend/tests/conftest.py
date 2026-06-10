@@ -1,6 +1,6 @@
 """Shared test fixtures and configuration."""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from app.main import app
@@ -16,6 +16,28 @@ CSRF_HEADERS = {"X-Requested-With": "XMLHttpRequest"}
 def fixture_csrf_headers() -> dict[str, str]:
     """Provide the CSRF header required for state-changing requests in tests."""
     return CSRF_HEADERS.copy()
+
+
+@pytest.fixture(autouse=True)
+def _mock_firestore_rate_limiter():
+    """Patch FirestoreRateLimiter._get_firestore_client for all tests.
+
+    Without this, every request through RateLimiterMiddleware tries to
+    connect to real Firebase/Firestore, causing multi-second connection
+    timeouts that make the test suite extremely slow.
+    """
+    with patch(
+        "app.middleware.rate_limiter.FirestoreRateLimiter._get_firestore_client",
+        return_value=None,
+    ):
+        # Also pre-set the app's rate limiter to skip Firestore
+        try:
+            stack = getattr(app, "middleware_stack", None)
+            if stack is not None:
+                _disable_firestore_on_rate_limiter(stack)
+        except Exception:
+            pass
+        yield
 
 
 @pytest.fixture(autouse=True)
@@ -38,6 +60,27 @@ def _reset_rate_limiter():
 
     # Clean up dependency overrides after each test
     app.dependency_overrides.clear()
+
+
+def _disable_firestore_on_rate_limiter(stack: object) -> None:
+    """Pre-set _firestore_available=False on RateLimiterMiddleware instances."""
+    from app.middleware.rate_limiter import RateLimiterMiddleware
+
+    current = stack
+    visited = set()
+    while current is not None:
+        if id(current) in visited:
+            break
+        visited.add(id(current))
+
+        if isinstance(current, RateLimiterMiddleware):
+            current._rate_limiter._firestore_available = False
+            return
+
+        inner = getattr(current, "app", None)
+        if inner is None:
+            break
+        current = inner
 
 
 def _clear_rate_limiter_from_stack(stack: object) -> None:

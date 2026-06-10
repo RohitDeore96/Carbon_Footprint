@@ -352,8 +352,13 @@ class TestFirestoreRateLimiterCheckAndIncrement:
 class TestRateLimiterMiddlewareDispatch:
     """Tests for RateLimiterMiddleware.dispatch with rate limiting."""
 
-    def test_middleware_allows_request_under_limit(self) -> None:
+    @patch("app.middleware.rate_limiter.FirestoreRateLimiter._get_firestore_client")
+    def test_middleware_allows_request_under_limit(
+        self, mock_get_fs_client: MagicMock
+    ) -> None:
         """Verify request is allowed when under rate limit."""
+        mock_get_fs_client.return_value = None  # Simulate Firestore unavailable
+
         test_app = FastAPI()
 
         @test_app.get("/test")
@@ -365,8 +370,13 @@ class TestRateLimiterMiddlewareDispatch:
         response = client.get("/test")
         assert response.status_code == 200
 
-    def test_middleware_blocks_request_over_limit(self) -> None:
+    @patch("app.middleware.rate_limiter.FirestoreRateLimiter._get_firestore_client")
+    def test_middleware_blocks_request_over_limit(
+        self, mock_get_fs_client: MagicMock
+    ) -> None:
         """Verify request is blocked when rate limit exceeded."""
+        mock_get_fs_client.return_value = None  # Simulate Firestore unavailable
+
         test_app = FastAPI()
 
         @test_app.get("/test")
@@ -385,8 +395,13 @@ class TestRateLimiterMiddlewareDispatch:
         response = client.get("/test")
         assert response.status_code == 429
 
-    def test_middleware_ai_endpoint_stricter_limit(self) -> None:
+    @patch("app.middleware.rate_limiter.FirestoreRateLimiter._get_firestore_client")
+    def test_middleware_ai_endpoint_stricter_limit(
+        self, mock_get_fs_client: MagicMock
+    ) -> None:
         """Verify AI endpoints have stricter rate limiting."""
+        mock_get_fs_client.return_value = None  # Simulate Firestore unavailable
+
         test_app = FastAPI()
 
         @test_app.post("/api/v1/ai/insights")

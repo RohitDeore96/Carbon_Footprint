@@ -168,22 +168,36 @@ class TestMainApp:
         assert app.version == "1.0.0"
 
     @patch("app.main.ensure_firebase_initialized")
-    def test_lifespan_calls_firebase_init(self, mock_ensure_init: MagicMock) -> None:
+    @patch("app.main.asyncio.all_tasks", return_value=[])
+    @patch("firebase_admin.firestore.client")
+    def test_lifespan_calls_firebase_init(
+        self,
+        mock_firestore_client: MagicMock,
+        mock_all_tasks: MagicMock,
+        mock_ensure_init: MagicMock,
+    ) -> None:
         """Verify the lifespan startup calls ensure_firebase_initialized."""
         from app.main import lifespan
 
+        mock_firestore_client.return_value = MagicMock()
         test_app = FastAPI(lifespan=lifespan)
 
         with TestClient(test_app):
             mock_ensure_init.assert_called()
 
     @patch("app.main.ensure_firebase_initialized")
+    @patch("app.main.asyncio.all_tasks", return_value=[])
+    @patch("firebase_admin.firestore.client")
     def test_lifespan_logs_startup_and_shutdown(
-        self, mock_ensure_init: MagicMock
+        self,
+        mock_firestore_client: MagicMock,
+        mock_all_tasks: MagicMock,
+        mock_ensure_init: MagicMock,
     ) -> None:
         """Verify lifespan logs startup and shutdown messages."""
         from app.main import lifespan
 
+        mock_firestore_client.return_value = MagicMock()
         test_app = FastAPI(lifespan=lifespan)
 
         with TestClient(test_app) as client:

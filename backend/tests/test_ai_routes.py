@@ -208,11 +208,16 @@ class TestVertexAiService:
     """Unit tests for the VertexAiService class."""
 
     @pytest.mark.unit
+    @patch("app.services.insights_cache.set_cached_insight")
+    @patch("app.services.insights_cache.get_cached_insight")
     def test_generate_insights_returns_parsed_dict(
         self,
+        mock_get_cache: MagicMock,
+        mock_set_cache: MagicMock,
         mock_ai_response_dict: dict[str, Any],
     ) -> None:
         """Verify generate_insights returns the parsed AI response dictionary."""
+        mock_get_cache.return_value = None  # No cache hit
         mock_client = MagicMock()
         mock_response = _build_mock_genai_response(mock_ai_response_dict)
         mock_client.models.generate_content.return_value = mock_response
@@ -228,11 +233,16 @@ class TestVertexAiService:
         assert len(result["actionable_steps"]) == 3
 
     @pytest.mark.unit
+    @patch("app.services.insights_cache.set_cached_insight")
+    @patch("app.services.insights_cache.get_cached_insight")
     def test_generate_insights_calls_model_with_correct_name(
         self,
+        mock_get_cache: MagicMock,
+        mock_set_cache: MagicMock,
         mock_ai_response_dict: dict[str, Any],
     ) -> None:
         """Verify the service calls the model with the configured model name."""
+        mock_get_cache.return_value = None  # No cache hit
         mock_client = MagicMock()
         mock_response = _build_mock_genai_response(mock_ai_response_dict)
         mock_client.models.generate_content.return_value = mock_response
@@ -248,8 +258,15 @@ class TestVertexAiService:
         assert call_kwargs.kwargs["model"] == AppConstants.VERTEX_AI_MODEL_NAME
 
     @pytest.mark.unit
-    def test_generate_insights_quota_exceeded_raises(self) -> None:
+    @patch("app.services.insights_cache.set_cached_insight")
+    @patch("app.services.insights_cache.get_cached_insight")
+    def test_generate_insights_quota_exceeded_raises(
+        self,
+        mock_get_cache: MagicMock,
+        mock_set_cache: MagicMock,
+    ) -> None:
         """Verify ResourceExhausted exception propagates from the service."""
+        mock_get_cache.return_value = None  # No cache hit
         mock_client = MagicMock()
         mock_client.models.generate_content.side_effect = Exception(
             "429 Quota exceeded"
@@ -265,8 +282,15 @@ class TestVertexAiService:
             )
 
     @pytest.mark.unit
-    def test_generate_insights_timeout_raises(self) -> None:
+    @patch("app.services.insights_cache.set_cached_insight")
+    @patch("app.services.insights_cache.get_cached_insight")
+    def test_generate_insights_timeout_raises(
+        self,
+        mock_get_cache: MagicMock,
+        mock_set_cache: MagicMock,
+    ) -> None:
         """Verify TimeoutError propagates from the service."""
+        mock_get_cache.return_value = None  # No cache hit
         mock_client = MagicMock()
         mock_client.models.generate_content.side_effect = TimeoutError(
             "Request timed out"

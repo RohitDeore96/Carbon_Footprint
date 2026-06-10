@@ -7,6 +7,8 @@ Tests cover:
 - FirestoreRateLimiter falls back to in-memory when Firestore unavailable
 """
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -102,8 +104,8 @@ class TestFirestoreRateLimiterFallback:
         from app.middleware.rate_limiter import FirestoreRateLimiter
 
         limiter = FirestoreRateLimiter()
-        # Firestore should not be available in test env, so this should
-        # fall back to in-memory and still work correctly
+        limiter._firestore_available = False  # Skip real Firestore connection
+
         import asyncio
 
         count = asyncio.run(limiter.check_and_increment("test-ip-1"))
@@ -118,6 +120,8 @@ class TestFirestoreRateLimiterFallback:
         from app.middleware.rate_limiter import FirestoreRateLimiter
 
         limiter = FirestoreRateLimiter()
+        limiter._firestore_available = False  # Skip real Firestore connection
+
         import asyncio
 
         count1 = asyncio.run(limiter.check_and_increment("test-ip-a"))
@@ -130,8 +134,13 @@ class TestFirestoreRateLimiterMiddleware:
     """Tests for the new RateLimiterMiddleware that uses FirestoreRateLimiter."""
 
     @pytest.mark.unit
-    def test_firestore_middleware_allows_first_request(self) -> None:
+    @patch("app.middleware.rate_limiter.FirestoreRateLimiter._get_firestore_client")
+    def test_firestore_middleware_allows_first_request(
+        self, mock_get_fs_client: MagicMock
+    ) -> None:
         """Verify the Firestore-backed middleware allows the first request."""
+        mock_get_fs_client.return_value = None  # Simulate Firestore unavailable
+
         test_app = FastAPI()
 
         @test_app.get("/test")
