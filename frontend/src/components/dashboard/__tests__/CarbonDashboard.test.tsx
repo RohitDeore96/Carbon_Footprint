@@ -1,10 +1,11 @@
 /**
  * CarbonDashboard.test.tsx — Comprehensive tests for the CarbonDashboard component.
- * Covers rendering, data fetching, empty states, summary stats, and activity log items.
+ * Covers rendering, data fetching, empty states, summary stats, demo data,
+ * chart placeholders, and activity log items.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
-import { render, screen, waitFor, act } from '@testing-library/react';
+import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
 import { CarbonDashboard } from '../CarbonDashboard';
 import type {
   CarbonCalculationResponse,
@@ -374,11 +375,11 @@ describe('CarbonDashboard', () => {
   // -------------------------------------------------------------------------
 
   describe('SummaryStats', () => {
-    it('does not render summary stats when no logs exist', async () => {
+    it('renders summary stats even when no logs exist', async () => {
       mockGetFootprintHistory.mockResolvedValue({ success: true, data: emptyHistoryResponse });
       render(<CarbonDashboard userId="demo-user-001" />);
       await waitFor(() => {
-        expect(screen.queryByLabelText('Carbon footprint summary statistics')).not.toBeInTheDocument();
+        expect(screen.getByLabelText('Carbon footprint summary statistics')).toBeInTheDocument();
       });
     });
 
@@ -438,6 +439,30 @@ describe('CarbonDashboard', () => {
       await waitFor(() => {
         expect(screen.getByRole('status', { name: undefined })).toBeInTheDocument();
         expect(screen.getByText(/No activities logged yet/)).toBeInTheDocument();
+      });
+    });
+
+    it('renders "Load Demo Data" button when no logs', async () => {
+      mockGetFootprintHistory.mockResolvedValue({ success: true, data: emptyHistoryResponse });
+      render(<CarbonDashboard userId="demo-user-001" />);
+      await waitFor(() => {
+        expect(screen.getByText('Load Demo Data')).toBeInTheDocument();
+      });
+    });
+
+    it('loads demo data when "Load Demo Data" button is clicked', async () => {
+      mockGetFootprintHistory.mockResolvedValue({ success: true, data: emptyHistoryResponse });
+      render(<CarbonDashboard userId="demo-user-001" />);
+      await waitFor(() => {
+        expect(screen.getByText('Load Demo Data')).toBeInTheDocument();
+      });
+      const demoBtn = screen.getByText('Load Demo Data');
+      await act(async () => {
+        fireEvent.click(demoBtn);
+      });
+      // After clicking, demo data should be loaded — verify activity items appear
+      await waitFor(() => {
+        expect(screen.getByText('Daily commute by car')).toBeInTheDocument();
       });
     });
 
@@ -511,11 +536,12 @@ describe('CarbonDashboard', () => {
   // -------------------------------------------------------------------------
 
   describe('Emission chart section', () => {
-    it('does not render emission chart when no breakdown data', async () => {
+    it('renders chart placeholder when no breakdown data', async () => {
       mockGetFootprintHistory.mockResolvedValue({ success: true, data: emptyHistoryResponse });
       render(<CarbonDashboard userId="demo-user-001" />);
       await waitFor(() => {
-        expect(screen.queryByText('Emission Breakdown')).not.toBeInTheDocument();
+        expect(screen.getByText('Emission Breakdown')).toBeInTheDocument();
+        expect(screen.getByText(/Log activities or load demo data/)).toBeInTheDocument();
       });
     });
 
@@ -543,15 +569,15 @@ describe('CarbonDashboard', () => {
   });
 
   // -------------------------------------------------------------------------
-  // ChatCoach visibility
+  // ChatCoach visibility — always rendered
   // -------------------------------------------------------------------------
 
   describe('ChatCoach visibility', () => {
-    it('does not render ChatCoach when no breakdown data', async () => {
+    it('renders ChatCoach even when no logs exist', async () => {
       mockGetFootprintHistory.mockResolvedValue({ success: true, data: emptyHistoryResponse });
       render(<CarbonDashboard userId="demo-user-001" />);
       await waitFor(() => {
-        expect(screen.queryByTestId('chat-coach')).not.toBeInTheDocument();
+        expect(screen.getByTestId('chat-coach')).toBeInTheDocument();
       });
     });
 

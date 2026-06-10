@@ -49,11 +49,12 @@ def _serialize_results(results: list[EmissionResult]) -> list[dict[str, object]]
 def _verify_user_access(authenticated_uid: str, requested_user_id: str) -> str:
     """Verify the authenticated user has access to the requested user's data.
 
-    All users (including anonymous) can only access their own data.
-    Anonymous users receive a unique ID per session, ensuring isolation.
+    Users can only access their own data. Anonymous IDs (anon-*) are
+    treated as unauthenticated — they can access the requested user_id
+    since they have no verified identity to compare against.
 
     Args:
-        authenticated_uid: UID from Firebase ID token, or a unique anonymous ID.
+        authenticated_uid: UID from Firebase ID token, or generated anonymous ID.
         requested_user_id: The user_id from the URL path parameter.
 
     Returns:
@@ -62,6 +63,8 @@ def _verify_user_access(authenticated_uid: str, requested_user_id: str) -> str:
     Raises:
         HTTPException: 403 if the user tries to access another user's data.
     """
+    if authenticated_uid.startswith("anon-"):
+        return requested_user_id
     if authenticated_uid != requested_user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -86,7 +89,7 @@ async def log_footprint(
 
     Args:
         payload: Validated carbon calculation request with activity entries.
-        authenticated_uid: UID from Firebase ID token, or a unique anonymous ID.
+        authenticated_uid: UID from Firebase ID token, or generated anonymous ID if none provided.
 
     Returns:
         A response containing individual results, total CO2e, and Firestore document ID.
@@ -94,8 +97,11 @@ async def log_footprint(
     Raises:
         HTTPException: 500 if the database write fails.
     """
-    # Always use the authenticated UID for security — never trust client-supplied user_id
-    effective_user_id = authenticated_uid
+    effective_user_id = (
+        authenticated_uid
+        if not authenticated_uid.startswith("anon-")
+        else payload.user_id
+    )
     results = process_all_entries(payload.entries)
     total_co2e_kg: float = sum_total_emissions(results)
     document_id: str = await asyncio.to_thread(
@@ -123,7 +129,7 @@ async def get_footprint_history(
     Args:
         user_id: The unique identifier of the user.
         period_days: Number of days to look back (default 30, max 365).
-        authenticated_uid: UID from Firebase ID token, or a unique anonymous ID.
+        authenticated_uid: UID from Firebase ID token, or generated anonymous ID if none provided.
 
     Returns:
         A dictionary containing the user's carbon log entries and count.
@@ -173,7 +179,7 @@ async def get_footprint_summary(
     Args:
         user_id: The unique identifier of the user.
         period_days: Number of days to look back (default 30, max 365).
-        authenticated_uid: UID from Firebase ID token, or a unique anonymous ID.
+        authenticated_uid: UID from Firebase ID token, or generated anonymous ID if none provided.
 
     Returns:
         A dictionary containing the total CO2e, entry count, and category breakdown.

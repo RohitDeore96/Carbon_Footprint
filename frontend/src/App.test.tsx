@@ -88,7 +88,7 @@ describe('App', () => {
     expect(mockSignInAnonymouslyAndGetUser).not.toHaveBeenCalled();
   });
 
-  it('falls back to anonymous-fallback when Firebase auth fails', async () => {
+  it('falls back to a unique fallback ID when Firebase auth fails', async () => {
     mockSignInAnonymouslyAndGetUser.mockRejectedValue(new Error('Firebase unavailable'));
 
     render(<App />);
@@ -102,7 +102,9 @@ describe('App', () => {
       expect(screen.getByTestId('carbon-dashboard')).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId('carbon-dashboard').dataset.userid).toBe('anonymous-fallback');
+    const userId = screen.getByTestId('carbon-dashboard').dataset.userid;
+    expect(userId).toMatch(/^fallback-[a-f0-9-]+$/);
+    expect(userId?.startsWith('fallback-')).toBe(true);
   });
 
   it('unsubscribes from auth changes on unmount', () => {

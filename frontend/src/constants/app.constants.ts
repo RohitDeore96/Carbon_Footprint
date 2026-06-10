@@ -11,7 +11,6 @@ export const APP_CONSTANTS = {
   APP_VERSION: '1.0.0',
   API_BASE_URL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000',
   GEMINI_MODEL_NAME: 'gemini-2.5-flash',
-  ANONYMOUS_USER_ID: 'anonymous-fallback',
 
   // ARIA labels (centralised for consistency)
   LOADING_ARIA_LABEL: 'Content is loading',

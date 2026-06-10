@@ -1,10 +1,12 @@
 """Tests for the Firebase Authentication middleware.
 
 Tests cover:
-- get_current_user with no credentials (anonymous access with unique ID)
+- get_current_user with no credentials (generates unique anonymous ID)
 - get_current_user with valid Firebase ID token
-- get_current_user with invalid/expired Firebase ID token
-- get_current_user with malformed Firebase ID token (ValueError)
+- get_current_user with expired Firebase ID token (401)
+- get_current_user with invalid Firebase ID token (401)
+- get_current_user with unexpected auth error (401)
+- Uniqueness of generated anonymous IDs across requests
 """
 
 from unittest.mock import MagicMock, patch
@@ -38,29 +40,25 @@ class TestGetCurrentUserAnonymous:
     """Tests for anonymous (no Authorization header) access."""
 
     @pytest.mark.unit
-    def test_no_auth_header_returns_unique_anonymous_id(
+    def test_no_auth_header_returns_anon_prefixed_id(
         self, auth_client: TestClient
     ) -> None:
-        """Verify requests without Authorization header get a unique anonymous ID."""
+        """Verify requests without Authorization header get an 'anon-' prefixed user ID."""
         response = auth_client.get("/test-auth")
         assert response.status_code == 200
-        user_id = response.json()["user_id"]
+        user_id: str = response.json()["user_id"]
         assert user_id.startswith("anon-")
-        assert len(user_id) > len("anon-")
 
     @pytest.mark.unit
     def test_each_anonymous_request_gets_unique_id(
         self, auth_client: TestClient
     ) -> None:
-        """Verify each unauthenticated request receives a distinct anonymous ID."""
+        """Verify each request without auth generates a unique anonymous ID."""
         response1 = auth_client.get("/test-auth")
         response2 = auth_client.get("/test-auth")
-        id1 = response1.json()["user_id"]
-        id2 = response2.json()["user_id"]
-        # Each request should get a unique ID for data isolation
-        assert id1 != id2
-        assert id1.startswith("anon-")
-        assert id2.startswith("anon-")
+        user_id_1: str = response1.json()["user_id"]
+        user_id_2: str = response2.json()["user_id"]
+        assert user_id_1 != user_id_2
 
 
 class TestGetCurrentUserValidToken:
@@ -80,35 +78,84 @@ class TestGetCurrentUserValidToken:
         assert response.json()["user_id"] == "user-abc-123"
 
 
+class TestGetCurrentUserExpiredToken:
+    """Tests for expired Firebase ID token."""
+
+    @pytest.mark.unit
+    @patch("app.middleware.auth.firebase_auth")
+    def test_expired_token_returns_401(
+        self, mock_firebase_auth: MagicMock, auth_client: TestClient
+    ) -> None:
+        """Verify expired Firebase ID token returns 401 with proper message."""
+        from firebase_admin import auth as firebase_auth_exceptions
+
+        mock_firebase_auth.verify_id_token.side_effect = (
+            firebase_auth_exceptions.ExpiredIdTokenError("Token expired", None)
+        )
+        mock_firebase_auth.ExpiredIdTokenError = (
+            firebase_auth_exceptions.ExpiredIdTokenError
+        )
+        mock_firebase_auth.InvalidIdTokenError = (
+            firebase_auth_exceptions.InvalidIdTokenError
+        )
+        response = auth_client.get(
+            "/test-auth", headers={"Authorization": "Bearer expired-token"}
+        )
+        assert response.status_code == 401
+        assert "expired" in response.json()["detail"].lower()
+
+
 class TestGetCurrentUserInvalidToken:
-    """Tests for invalid/expired Firebase ID token."""
+    """Tests for invalid Firebase ID token."""
 
     @pytest.mark.unit
     @patch("app.middleware.auth.firebase_auth")
     def test_invalid_token_returns_401(
         self, mock_firebase_auth: MagicMock, auth_client: TestClient
     ) -> None:
-        """Verify invalid Firebase ID token returns 401 Unauthorized."""
-        from firebase_admin.exceptions import FirebaseError
+        """Verify invalid Firebase ID token returns 401 with proper message."""
+        from firebase_admin import auth as firebase_auth_exceptions
 
-        mock_firebase_auth.verify_id_token.side_effect = FirebaseError(
-            code="INVALID_ID_TOKEN", message="Token expired"
+        mock_firebase_auth.verify_id_token.side_effect = (
+            firebase_auth_exceptions.InvalidIdTokenError("Invalid token")
+        )
+        mock_firebase_auth.ExpiredIdTokenError = (
+            firebase_auth_exceptions.ExpiredIdTokenError
+        )
+        mock_firebase_auth.InvalidIdTokenError = (
+            firebase_auth_exceptions.InvalidIdTokenError
         )
         response = auth_client.get(
-            "/test-auth", headers={"Authorization": "Bearer expired-token"}
+            "/test-auth", headers={"Authorization": "Bearer invalid-token"}
         )
         assert response.status_code == 401
-        assert "Invalid or expired authentication token" in response.json()["detail"]
+        assert "Invalid" in response.json()["detail"]
+
+
+class TestGetCurrentUserUnexpectedError:
+    """Tests for unexpected auth verification errors."""
 
     @pytest.mark.unit
     @patch("app.middleware.auth.firebase_auth")
-    def test_malformed_token_returns_401(
+    def test_unexpected_error_returns_401(
         self, mock_firebase_auth: MagicMock, auth_client: TestClient
     ) -> None:
-        """Verify malformed token (ValueError) returns 401 Unauthorized."""
-        mock_firebase_auth.verify_id_token.side_effect = ValueError("Malformed JWT")
+        """Verify unexpected auth error returns 401 with generic message."""
+        mock_firebase_auth.verify_id_token.side_effect = RuntimeError(
+            "Unexpected error"
+        )
+        # Set to base Exception so the specific except blocks don't match,
+        # and the generic except block catches it
+        from firebase_admin import auth as firebase_auth_exceptions
+
+        mock_firebase_auth.ExpiredIdTokenError = (
+            firebase_auth_exceptions.ExpiredIdTokenError
+        )
+        mock_firebase_auth.InvalidIdTokenError = (
+            firebase_auth_exceptions.InvalidIdTokenError
+        )
         response = auth_client.get(
-            "/test-auth", headers={"Authorization": "Bearer malformed-token"}
+            "/test-auth", headers={"Authorization": "Bearer some-token"}
         )
         assert response.status_code == 401
-        assert "Malformed authentication token" in response.json()["detail"]
+        assert "failed" in response.json()["detail"].lower()

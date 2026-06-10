@@ -16,8 +16,6 @@ class AppConstants:
     FIREBASE_COLLECTION_CARBON_LOGS: Final[str] = "carbon_logs"
     FIREBASE_QUERY_LIMIT: Final[int] = 100
 
-    ANONYMOUS_USER_ID: Final[str] = "anonymous"
-
     RATE_LIMIT_REQUESTS_PER_MINUTE: Final[int] = 60
     RATE_LIMIT_BURST: Final[int] = 10
 

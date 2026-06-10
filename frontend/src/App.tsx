@@ -4,7 +4,6 @@ import { CarbonDashboard } from './components/dashboard/CarbonDashboard';
 import { ToastProvider } from './components/ui/Toast';
 import { signInAnonymouslyAndGetUser, onAuthChange } from './services/firebase';
 import OnboardingModal from './components/onboarding/OnboardingModal';
-import { APP_CONSTANTS } from './constants/app.constants';
 import './App.css';
 
 // ---------------------------------------------------------------------------
@@ -57,7 +56,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 /**
  * Root application component.
  * Uses Firebase Anonymous Authentication to assign each user a unique identity.
- * Falls back to APP_CONSTANTS.ANONYMOUS_USER_ID if Firebase auth fails.
+ * Falls back to a unique generated ID if Firebase auth fails.
  * Single ToastProvider wraps entire app to avoid duplicate context instances.
  */
 export default function App(): React.JSX.Element {
@@ -77,7 +76,8 @@ export default function App(): React.JSX.Element {
           })
           .catch((err: unknown) => {
             console.error('Firebase anonymous auth failed, using fallback:', err);
-            setUserId(APP_CONSTANTS.ANONYMOUS_USER_ID);
+            // Generate unique fallback ID instead of shared sentinel
+            setUserId(`fallback-${crypto.randomUUID().slice(0, 12)}`);
             setLoading(false);
           });
       }
@@ -98,7 +98,7 @@ export default function App(): React.JSX.Element {
             <>
               <OnboardingModal />
               <h1 className="sr-only">Carbon Footprint Awareness Platform</h1>
-              <CarbonDashboard userId={userId ?? APP_CONSTANTS.ANONYMOUS_USER_ID} />
+              <CarbonDashboard userId={userId ?? `fallback-${crypto.randomUUID().slice(0, 12)}`} />
             </>
           )}
         </AppLayout>

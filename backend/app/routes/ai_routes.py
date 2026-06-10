@@ -121,7 +121,7 @@ async def get_insights(
 
     Args:
         payload: Validated insights request with accumulated emission data.
-        authenticated_uid: UID from Firebase ID token, or "anonymous" if none provided.
+        authenticated_uid: UID from Firebase ID token, or generated anonymous ID if none provided.
 
     Returns:
         AI-generated insights with actionable sustainability recommendations.
@@ -154,7 +154,7 @@ async def chat(
 
     Args:
         payload: Validated chat request with message, user data, and conversation history.
-        authenticated_uid: UID from Firebase ID token, or "anonymous" if none provided.
+        authenticated_uid: UID from Firebase ID token, or generated anonymous ID if none provided.
 
     Returns:
         AI-generated coaching response with suggested follow-up questions.

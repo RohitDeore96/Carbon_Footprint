@@ -1538,3 +1538,88 @@ body {
     font-size: 1.125rem;
   }
 }
+
+/* --------------------------------------------------------------------------
+   Demo Data Button
+   -------------------------------------------------------------------------- */
+.demo-data-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
+  padding: var(--space-3) var(--space-6);
+  background: linear-gradient(135deg, rgba(52,211,153,0.15), rgba(5,150,105,0.1));
+  border: 1px solid rgba(52,211,153,0.35);
+  border-radius: var(--radius-md);
+  color: var(--color-success);
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.demo-data-btn:hover {
+  background: linear-gradient(135deg, rgba(52,211,153,0.25), rgba(5,150,105,0.2));
+  border-color: rgba(52,211,153,0.5);
+  transform: translateY(-1px);
+}
+
+/* --------------------------------------------------------------------------
+   Chart Placeholder
+   -------------------------------------------------------------------------- */
+.chart-placeholder {
+  text-align: center;
+  padding: var(--space-12) var(--space-8);
+  background: rgba(15, 23, 42, 0.3);
+  border: 1px dashed rgba(99,102,241,0.2);
+  border-radius: var(--radius-lg);
+  margin-top: var(--space-4);
+}
+.chart-placeholder-icon {
+  font-size: 2.5rem;
+  display: block;
+  margin-bottom: var(--space-4);
+  opacity: 0.6;
+}
+.chart-placeholder-text {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+/* --------------------------------------------------------------------------
+   Navigation links
+   -------------------------------------------------------------------------- */
+.app-nav-links {
+  display: flex;
+  gap: var(--space-6);
+  align-items: center;
+}
+.app-nav-link {
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: color var(--transition-fast);
+  white-space: nowrap;
+}
+.app-nav-link:hover,
+.app-nav-link:focus-visible {
+  color: var(--color-brand-light);
+}
+.app-header-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+@media (max-width: 768px) {
+  .app-nav-links {
+    gap: var(--space-3);
+  }
+  .app-nav-link {
+    font-size: 0.75rem;
+  }
+}

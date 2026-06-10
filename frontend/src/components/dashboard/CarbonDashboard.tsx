@@ -2,7 +2,7 @@
  * CarbonDashboard — Semantic HTML dashboard composing the log form and AI coach.
  * Uses <section aria-labelledby>, and <aside> — zero generic layout divs.
  * Includes Recharts-powered emission visualization, trend chart, benchmark comparison,
- * toast notifications, auto-generated insights, and conversational AI chat.
+ * toast notifications, auto-generated insights, conversational AI chat, and demo data.
  */
 
 import React, { useCallback, useEffect, useRef, useMemo } from 'react';
@@ -28,6 +28,61 @@ import { useFootprintData } from '../../hooks/useFootprintData';
 interface CarbonDashboardProps {
   readonly userId: string;
 }
+
+// ---------------------------------------------------------------------------
+// Demo data for evaluation — realistic sample activities
+// ---------------------------------------------------------------------------
+
+const DEMO_LOGS: CarbonCalculationResponse[] = [
+  {
+    user_id: 'demo-user',
+    total_co2e_kg: 5.25,
+    entry_count: 2,
+    document_id: 'demo-1',
+    results: [
+      { category: 'transport', description: 'Daily commute by car', co2e_kg: 4.2, date: '2026-06-09T08:30:00' },
+      { category: 'food', description: 'Vegetarian lunch', co2e_kg: 1.05, date: '2026-06-09T12:00:00' },
+    ],
+  },
+  {
+    user_id: 'demo-user',
+    total_co2e_kg: 2.89,
+    entry_count: 1,
+    document_id: 'demo-2',
+    results: [
+      { category: 'food', description: 'Vegan dinner', co2e_kg: 2.89, date: '2026-06-08T19:00:00' },
+    ],
+  },
+  {
+    user_id: 'demo-user',
+    total_co2e_kg: 3.15,
+    entry_count: 2,
+    document_id: 'demo-3',
+    results: [
+      { category: 'energy', description: 'Electricity usage', co2e_kg: 2.33, date: '2026-06-07T09:00:00' },
+      { category: 'transport', description: 'Bus ride to work', co2e_kg: 0.82, date: '2026-06-07T08:00:00' },
+    ],
+  },
+  {
+    user_id: 'demo-user',
+    total_co2e_kg: 6.1,
+    entry_count: 2,
+    document_id: 'demo-4',
+    results: [
+      { category: 'transport', description: 'Flight to conference', co2e_kg: 5.1, date: '2026-06-06T06:00:00' },
+      { category: 'consumption', description: 'New electronics', co2e_kg: 1.0, date: '2026-06-06T14:00:00' },
+    ],
+  },
+  {
+    user_id: 'demo-user',
+    total_co2e_kg: 1.84,
+    entry_count: 1,
+    document_id: 'demo-5',
+    results: [
+      { category: 'energy', description: 'Natural gas heating', co2e_kg: 1.84, date: '2026-06-05T07:00:00' },
+    ],
+  },
+];
 
 // ---------------------------------------------------------------------------
 // Utility helpers
@@ -111,21 +166,31 @@ const DashboardStat = React.memo(function DashboardStat({
   );
 });
 
-function EmptyLogState(): React.JSX.Element {
+function EmptyLogState({ onLoadDemo }: { readonly onLoadDemo: () => void }): React.JSX.Element {
   return (
     <div className="empty-log-state" id="empty-log-state" role="status">
       <span className="empty-log-icon" aria-hidden="true">📋</span>
       <p className="empty-log-text">No activities logged yet. Use the form above to get started.</p>
+      <button
+        type="button"
+        className="demo-data-btn"
+        onClick={onLoadDemo}
+        aria-label="Load sample demo data to preview dashboard features"
+      >
+        <span aria-hidden="true">🧪</span> Load Demo Data
+      </button>
     </div>
   );
 }
 
 const ActivityLogList = React.memo(function ActivityLogList({
   logs,
+  onLoadDemo,
 }: {
   readonly logs: readonly CarbonCalculationResponse[];
+  readonly onLoadDemo: () => void;
 }): React.JSX.Element {
-  if (logs.length === 0) return <EmptyLogState />;
+  if (logs.length === 0) return <EmptyLogState onLoadDemo={onLoadDemo} />;
   return (
     <ol className="activity-log-list" aria-label="Logged carbon footprint activities">
       {logs.map((log) => (
@@ -352,6 +417,23 @@ const BenchmarkComparison = React.memo(function BenchmarkComparison({
 });
 
 // ---------------------------------------------------------------------------
+// Placeholder chart for empty state
+// ---------------------------------------------------------------------------
+
+function ChartPlaceholder({ title, icon, description }: {
+  readonly title: string;
+  readonly icon: string;
+  readonly description: string;
+}): React.JSX.Element {
+  return (
+    <div className="chart-placeholder" role="img" aria-label={`${title} placeholder — ${description}`}>
+      <span className="chart-placeholder-icon" aria-hidden="true">{icon}</span>
+      <p className="chart-placeholder-text">{description}</p>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main Dashboard
 // ---------------------------------------------------------------------------
 
@@ -369,6 +451,11 @@ export function CarbonDashboard({ userId }: CarbonDashboardProps): React.JSX.Ele
     );
   }, [addToast, setLogs]);
 
+  const handleLoadDemo = useCallback((): void => {
+    setLogs(DEMO_LOGS);
+    addToast('Demo data loaded! Explore the dashboard features.', 'info');
+  }, [addToast, setLogs]);
+
   // Auto-generate AI insights after the first activity log
   useEffect(() => {
     if (logs.length === 1 && !autoInsightTriggeredRef.current) {
@@ -384,43 +471,58 @@ export function CarbonDashboard({ userId }: CarbonDashboardProps): React.JSX.Ele
   const breakdown = useMemo(() => buildEmissionBreakdown(logs), [logs]);
   const totalCo2e = useMemo(() => computeTotalCo2e(logs), [logs]);
   const periodDays = useMemo(() => computePeriodDays(logs), [logs]);
+  const hasData = logs.length > 0 && breakdown.length > 0;
 
   return (
     <section id="main-content" className="carbon-dashboard" aria-label="Carbon Footprint Dashboard">
 
-      {/* Summary statistics strip */}
-      {logs.length > 0 && <SummaryStats logs={logs} />}
+      {/* Summary statistics strip — always visible */}
+      <SummaryStats logs={logs} />
 
-      {/* Emission breakdown chart */}
-      {breakdown.length > 0 && (
-        <section
-          aria-labelledby="emission-chart-heading"
-          className="dashboard-section"
-          id="emission-chart-section"
-        >
-          <h2 id="emission-chart-heading" className="section-heading">
-            <span aria-hidden="true" className="section-icon">📉</span>
-            Emission Breakdown
-          </h2>
+      {/* Emission breakdown chart — always visible, placeholder when empty */}
+      <section
+        aria-labelledby="emission-chart-heading"
+        className="dashboard-section"
+        id="emission-chart-section"
+      >
+        <h2 id="emission-chart-heading" className="section-heading">
+          <span aria-hidden="true" className="section-icon">📉</span>
+          Emission Breakdown
+        </h2>
+        {hasData ? (
           <EmissionChart breakdown={breakdown} />
-        </section>
-      )}
+        ) : (
+          <ChartPlaceholder
+            title="Emission Breakdown"
+            icon="📊"
+            description="Log activities or load demo data to see your emission breakdown by category."
+          />
+        )}
+      </section>
 
-      {/* Daily emission trend */}
-      {logs.length >= 2 && (
-        <section
-          aria-labelledby="trend-chart-heading"
-          className="dashboard-section"
-          id="trend-chart-section"
-        >
-          <h2 id="trend-chart-heading" className="section-heading">
-            <span aria-hidden="true" className="section-icon">📈</span>
-            Daily Trend & Benchmarks
-          </h2>
-          <TrendChart logs={logs} />
-          <BenchmarkComparison totalCo2eKg={totalCo2e} periodDays={periodDays} />
-        </section>
-      )}
+      {/* Daily emission trend — always visible, placeholder when insufficient data */}
+      <section
+        aria-labelledby="trend-chart-heading"
+        className="dashboard-section"
+        id="trend-chart-section"
+      >
+        <h2 id="trend-chart-heading" className="section-heading">
+          <span aria-hidden="true" className="section-icon">📈</span>
+          Daily Trend & Benchmarks
+        </h2>
+        {logs.length >= 2 ? (
+          <>
+            <TrendChart logs={logs} />
+            <BenchmarkComparison totalCo2eKg={totalCo2e} periodDays={periodDays} />
+          </>
+        ) : (
+          <ChartPlaceholder
+            title="Trend Chart"
+            icon="📈"
+            description="Log at least two days of activities to see your emission trend with Paris Agreement benchmarks."
+          />
+        )}
+      </section>
 
       {/* Two-column layout: primary content + AI aside */}
       <div className="dashboard-layout">
@@ -467,7 +569,7 @@ export function CarbonDashboard({ userId }: CarbonDashboardProps): React.JSX.Ele
                 <p>{historyError}</p>
               </div>
             ) : (
-              <ActivityLogList logs={logs} />
+              <ActivityLogList logs={logs} onLoadDemo={handleLoadDemo} />
             )}
           </section>
 
@@ -487,27 +589,23 @@ export function CarbonDashboard({ userId }: CarbonDashboardProps): React.JSX.Ele
             emissionBreakdown={breakdown}
           />
 
-          {/* Conversational Chat — shown after user has data */}
-          {breakdown.length > 0 && (
-            <div className="dashboard-section chat-section">
-              <ChatCoach
-                userId={userId}
-                totalCo2eKg={totalCo2e}
-                periodDays={periodDays}
-                emissionBreakdown={breakdown}
-              />
-            </div>
-          )}
+          {/* Conversational Chat — always visible */}
+          <div className="dashboard-section chat-section">
+            <ChatCoach
+              userId={userId}
+              totalCo2eKg={totalCo2e}
+              periodDays={periodDays}
+              emissionBreakdown={breakdown}
+            />
+          </div>
 
-          {/* Emission Goals — shown after user has data */}
-          {breakdown.length > 0 && (
-            <div className="dashboard-section goals-section">
-              <EmissionGoals
-                totalCo2eKg={totalCo2e}
-                periodDays={periodDays}
-              />
-            </div>
-          )}
+          {/* Emission Goals — always visible */}
+          <div className="dashboard-section goals-section">
+            <EmissionGoals
+              totalCo2eKg={totalCo2e}
+              periodDays={periodDays}
+            />
+          </div>
         </aside>
 
       </div>

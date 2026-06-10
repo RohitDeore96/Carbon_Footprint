@@ -91,6 +91,11 @@ export default function OnboardingModal(): React.JSX.Element | null {
     if (!visible) return;
 
     function handleKeyDown(e: KeyboardEvent): void {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        completeOnboarding();
+        return;
+      }
       if (e.key !== 'Tab') return;
 
       const modal = modalRef.current;
@@ -135,7 +140,7 @@ export default function OnboardingModal(): React.JSX.Element | null {
 
   const handleSkip = useCallback((): void => {
     completeOnboarding();
-  }, [completeOnboarding]);
+  }, []);
 
   const isLastStep = currentStep === STEPS.length - 1;
   const step = STEPS[currentStep];

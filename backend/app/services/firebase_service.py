@@ -4,6 +4,7 @@ Provides a strictly typed interface for writing calculated emission data
 to the Firestore ``carbon_logs`` collection via ``firebase-admin``.
 """
 
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -31,12 +32,19 @@ def _initialize_firebase_app() -> None:
     """Initialize the Firebase Admin SDK if no default app exists.
 
     Uses Application Default Credentials (ADC) for authentication.
+    Explicitly sets the project ID so token verification works on
+    Cloud Run and other environments where ADC alone may not
+    provide it.
     Skips initialization if the default app is already registered.
     """
     try:
         firebase_admin.get_app()
     except ValueError:
-        firebase_admin.initialize_app(credentials.ApplicationDefault())
+        options = firebase_admin.AppOptions(
+            credential=credentials.ApplicationDefault(),
+            projectId=os.environ.get("GOOGLE_CLOUD_PROJECT", "carbon-footprint-12"),
+        )
+        firebase_admin.initialize_app(options=options)
 
 
 def _build_log_document(

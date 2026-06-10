@@ -7,17 +7,19 @@ service cloud.firestore {
     }
 
     // Rules for the carbon_logs collection
+    // Authenticated users can only access their own data (UID-scoped)
     match /carbon_logs/{documentId} {
       allow create: if request.auth != null && request.auth.uid == request.resource.data.user_id;
       allow read, update, delete: if request.auth != null && request.auth.uid == resource.data.user_id;
     }
 
     // Rules for the ai_insights_cache collection
-    // Cache documents are keyed by SHA-256 hash of user data.
-    // Only authenticated users can read; writes are done via Admin SDK (server-side).
+    // Cache entries are keyed by SHA-256 hash (no user data in key).
+    // Only server-side (Admin SDK) writes are expected; client reads are
+    // denied to prevent cache snooping. Admin SDK bypasses rules entirely.
     match /ai_insights_cache/{documentId} {
-      allow read: if request.auth != null;
-      allow write: if false;  // Only Admin SDK can write cache entries
+      allow read: if false;
+      allow write: if false;
     }
   }
 }

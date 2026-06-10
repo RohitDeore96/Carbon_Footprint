@@ -5,7 +5,7 @@
  */
 
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { getAuth, signInAnonymously, onAuthStateChanged, type User } from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || '',
@@ -43,6 +43,21 @@ export async function signInAnonymouslyAndGetUser(): Promise<{ uid: string }> {
     console.warn('Firebase anonymous sign-in failed, using fallback ID:', error);
     const fallbackUid = `fallback-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     return { uid: fallbackUid };
+  }
+}
+
+/**
+ * Get a fresh Firebase ID token for the current user.
+ * Forces token refresh to avoid expired token issues.
+ * Returns null if no user is signed in or token retrieval fails.
+ */
+export async function getFreshIdToken(): Promise<string | null> {
+  const user: User | null = auth.currentUser;
+  if (!user) return null;
+  try {
+    return await user.getIdToken(true); // Force refresh
+  } catch {
+    return null;
   }
 }
 

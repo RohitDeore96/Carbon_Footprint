@@ -171,7 +171,7 @@ function createAxiosInstance(): AxiosInstance {
       const auth = getAuth();
       const user = auth.currentUser;
       if (user) {
-        const token = await user.getIdToken();
+        const token = await user.getIdToken(true); // Force refresh to avoid expired tokens
         config.headers.Authorization = `Bearer ${token}`;
       }
     } catch {
