@@ -6,6 +6,7 @@ All admin endpoints require an ``X-Admin-Key`` header matching
 the ``ADMIN_API_KEY`` environment variable.
 """
 
+import hmac
 import os
 
 from fastapi import APIRouter, Header, HTTPException, status
@@ -31,7 +32,7 @@ def _verify_admin_key(admin_key: str | None) -> None:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Admin endpoints not configured. Set ADMIN_API_KEY environment variable.",
         )
-    if admin_key != configured_key:
+    if not hmac.compare_digest(admin_key or "", configured_key):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid admin API key.",

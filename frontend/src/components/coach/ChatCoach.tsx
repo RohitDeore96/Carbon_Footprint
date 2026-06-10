@@ -94,7 +94,11 @@ export function ChatCoach({
     abortControllerRef.current = controller;
 
     const userMessage: ChatMessage = { role: 'user', content: trimmed };
-    setMessages((prev) => [...prev, userMessage]);
+    setMessages((prev) => {
+      const updated = [...prev, userMessage];
+      // Cap messages to prevent unbounded memory growth
+      return updated.length > 50 ? updated.slice(-50) : updated;
+    });
     setInputValue('');
     setIsLoading(true);
     setError(null);

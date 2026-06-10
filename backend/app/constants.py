@@ -64,11 +64,17 @@ class AppConstants:
     )
 
     # CORS origins loaded from environment for production safety
+    # In production, localhost origins are excluded unless explicitly set
+    _CORS_DEFAULT: Final[str] = (
+        "https://carbon-footprint-12.web.app"
+        if _IS_PRODUCTION
+        else "http://localhost:5173,http://localhost:3000,https://carbon-footprint-12.web.app"
+    )
     CORS_ALLOWED_ORIGINS: Final[list[str]] = [
         origin.strip()
         for origin in os.environ.get(
             "CORS_ALLOWED_ORIGINS",
-            "http://localhost:5173,http://localhost:3000,https://carbon-footprint-12.web.app",
+            _CORS_DEFAULT,
         ).split(",")
         if origin.strip()
     ]

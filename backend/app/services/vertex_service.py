@@ -383,8 +383,9 @@ class VertexAiService:
     ) -> dict[str, Any]:
         """Async variant of generate_insights that does not block the event loop.
 
-        Delegates the synchronous Gemini call to a thread pool executor,
-        allowing the asyncio event loop to serve other requests concurrently.
+        Performs retries with asyncio.sleep instead of blocking time.sleep,
+        freeing the thread pool worker during backoff periods. Falls back to
+        the sync path (which uses time.sleep) as a last resort.
 
         Args:
             user_data: Dictionary containing aggregated emission data.
@@ -393,7 +394,54 @@ class VertexAiService:
             A dictionary with keys ``insight``, ``equivalent_impact``,
             and ``actionable_steps``.
         """
-        return await asyncio.to_thread(self.generate_insights, user_data)
+        from app.services.insights_cache import get_cached_insight, set_cached_insight
+
+        # Check cache first (fast path — no thread needed)
+        cached = get_cached_insight(user_data)
+        if cached is not None:
+            return cached
+
+        # Retry loop with non-blocking asyncio.sleep
+        last_exc: Exception | None = None
+        for attempt in range(AppConstants.VERTEX_AI_MAX_RETRIES + 1):
+            try:
+                prompt: str = _format_prompt(user_data)
+                response = await asyncio.to_thread(self._call_model, prompt)
+                response_text: str = _extract_response_text(response)
+                result = _parse_model_response(response_text)
+                set_cached_insight(user_data, result)
+                return result
+            except Exception as exc:
+                last_exc = exc
+                logger.warning(
+                    "Async model call attempt %d/%d failed: %s",
+                    attempt + 1,
+                    AppConstants.VERTEX_AI_MAX_RETRIES + 1,
+                    exc,
+                )
+                if attempt < AppConstants.VERTEX_AI_MAX_RETRIES:
+                    backoff_seconds = 1 * (attempt + 1)
+                    logger.info("Retrying in %d seconds (async)...", backoff_seconds)
+                    await asyncio.sleep(backoff_seconds)
+
+        # Fallback to secondary model
+        try:
+            logger.info(
+                "Trying fallback model: %s", AppConstants.VERTEX_AI_FALLBACK_MODEL
+            )
+            fallback_prompt: str = _format_prompt(user_data)
+            response = await asyncio.to_thread(
+                self._call_fallback_model, fallback_prompt
+            )
+            fallback_response_text: str = _extract_response_text(response)
+            result = _parse_model_response(fallback_response_text)
+            set_cached_insight(user_data, result)
+            return result
+        except Exception as fallback_exc:
+            logger.error("Fallback model also failed: %s", fallback_exc)
+            if last_exc is not None:
+                raise last_exc from fallback_exc
+            raise fallback_exc
 
     async def chat_async(
         self,
@@ -460,6 +508,21 @@ class VertexAiService:
         """
         return self._client.models.generate_content(
             model=self._model_name,
+            contents=prompt,
+            config=self._config,
+        )
+
+    def _call_fallback_model(self, prompt: str) -> Any:
+        """Execute the fallback Gemini model call.
+
+        Args:
+            prompt: The formatted user prompt to send to the fallback model.
+
+        Returns:
+            The raw GenerateContentResponse from the Gemini API.
+        """
+        return self._client.models.generate_content(
+            model=AppConstants.VERTEX_AI_FALLBACK_MODEL,
             contents=prompt,
             config=self._config,
         )

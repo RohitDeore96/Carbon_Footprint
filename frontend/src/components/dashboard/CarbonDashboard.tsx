@@ -131,8 +131,14 @@ function computePeriodDays(logs: readonly CarbonCalculationResponse[]): number {
     .map((log) => log.results[0]?.date?.slice(0, 10))
     .filter((d): d is string => d !== undefined);
   if (dates.length === 0) return 1;
-  const minDate = dates.reduce((a, b) => (a < b ? a : b));
-  const maxDate = dates.reduce((a, b) => (a > b ? a : b));
+  // Single-pass min/max instead of two separate reduce() calls
+  const { min: minDate, max: maxDate } = dates.reduce(
+    (acc, d) => ({
+      min: d < acc.min ? d : acc.min,
+      max: d > acc.max ? d : acc.max,
+    }),
+    { min: dates[0], max: dates[0] },
+  );
   const diffMs = new Date(maxDate).getTime() - new Date(minDate).getTime();
   return Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
 }
