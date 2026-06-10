@@ -1,6 +1,6 @@
-fastapi==0.115.0
+fastapi==0.136.3
 uvicorn[standard]==0.30.0
-python-dotenv==1.0.1
+python-dotenv==1.2.2
 firebase-admin==6.5.0
 pydantic==2.13.0
 secure==0.3.0
