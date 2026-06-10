@@ -13,7 +13,6 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from firebase_admin import auth as firebase_auth
 from firebase_admin.exceptions import FirebaseError
 
-
 _bearer_scheme = HTTPBearer(auto_error=False)
 
 

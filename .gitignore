@@ -49,6 +49,14 @@ Thumbs.db
 *.log
 npm-debug.log*
 
+# Frontend coverage reports
+frontend/coverage/
+
+# Prevent accidental submodule directories
+Carbon_Footprint/
+carbon-clean/
+carbon-latest/
+
 # Agent / tooling artifacts
 worklog.md
 agent-ctx/

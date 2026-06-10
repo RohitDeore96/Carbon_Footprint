@@ -129,8 +129,10 @@ def fixture_multi_entry_payload() -> dict:
 
 def _override_auth(uid: str):
     """Create a dependency override that returns the given UID for get_current_user."""
+
     async def _mock_get_current_user():
         return uid
+
     return _mock_get_current_user
 
 
@@ -499,7 +501,9 @@ class TestFootprintEndpointHappyPath:
             mock_service = MagicMock()
             mock_service.write_carbon_log.return_value = "mock-doc-verify"
             mock_get_service.return_value = mock_service
-            response = client.post("/api/v1/footprint/log", json=valid_transport_payload)
+            response = client.post(
+                "/api/v1/footprint/log", json=valid_transport_payload
+            )
             assert response.status_code == 201
             data: dict = response.json()
             # The response user_id must be the authenticated UID, not the payload user_id
