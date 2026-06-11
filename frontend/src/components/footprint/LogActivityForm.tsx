@@ -450,6 +450,11 @@ export function LogActivityForm({ userId, onSuccess }: LogActivityFormProps): Re
         <div role="alert" className="form-api-error" aria-live="assertive" id="form-api-error">
           <strong>Submission failed ({apiError.code}):</strong>{' '}
           {apiError.detail ?? apiError.message}
+          {apiError.code === 422 && (
+            <p className="form-api-error-hint">
+              Please check your inputs and try again. If the problem persists, refresh the page.
+            </p>
+          )}
         </div>
       )}
 

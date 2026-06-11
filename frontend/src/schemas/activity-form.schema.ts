@@ -99,7 +99,7 @@ export const TRANSPORT_DEFAULTS: TransportFormValues = {
   description: '',
   date: _today,
   mode: 'car',
-  distance_km: 0,
+  distance_km: 1,
 };
 
 export const ENERGY_DEFAULTS: EnergyFormValues = {
@@ -107,7 +107,7 @@ export const ENERGY_DEFAULTS: EnergyFormValues = {
   description: '',
   date: _today,
   source: 'electricity',
-  consumption_kwh: 0,
+  consumption_kwh: 1,
 };
 
 export const DIET_DEFAULTS: DietFormValues = {

@@ -148,6 +148,10 @@ describe('LogActivityForm', () => {
     it('shows validation errors for multiple empty fields on submit', async () => {
       renderForm();
 
+      // Clear the distance field to trigger a second validation error
+      const distInput = screen.getByLabelText(/Distance \(km\)/);
+      await userEvent.clear(distInput);
+
       const submitBtn = screen.getByRole('button', { name: /Log activity entry/i });
       await userEvent.click(submitBtn);
 

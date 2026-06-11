@@ -131,12 +131,29 @@ function mapStatusToCode(status: number): ApiErrorCode {
 function buildApiError(err: AxiosError): ApiError {
   if (err.response !== undefined) {
     const status = err.response.status;
-    const detail =
-      typeof err.response.data === 'object' &&
-      err.response.data !== null &&
-      'detail' in err.response.data
-        ? String((err.response.data as Record<string, unknown>)['detail'])
-        : undefined;
+    const rawData = err.response.data;
+    let detail: string | undefined;
+
+    if (typeof rawData === 'object' && rawData !== null && 'detail' in rawData) {
+      const detailValue = (rawData as Record<string, unknown>)['detail'];
+      if (Array.isArray(detailValue)) {
+        // FastAPI 422 validation errors: array of { loc, msg, type }
+        detail = detailValue
+          .map((e: Record<string, unknown>) => {
+            const loc = Array.isArray(e['loc']) ? (e['loc'] as string[]).slice(1).join(' → ') : String(e['loc']);
+            return `${loc}: ${e['msg']}`;
+          })
+          .join('; ');
+      } else {
+        detail = String(detailValue);
+      }
+    }
+
+    // Log full response body for debugging 422 and other server errors
+    if (status === 422 || status >= 500) {
+      console.error(`API ${status} response:`, JSON.stringify(rawData, null, 2));
+    }
+
     return { code: mapStatusToCode(status), message: `HTTP ${status}`, detail };
   }
   if (err.request !== undefined) {
