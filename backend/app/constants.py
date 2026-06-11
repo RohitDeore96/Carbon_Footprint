@@ -17,10 +17,7 @@ class AppConstants:
 
     FIREBASE_COLLECTION_CARBON_LOGS: Final[str] = "carbon_logs"
     FIREBASE_QUERY_LIMIT: Final[int] = 100
-<<<<<<< HEAD
     MAX_ENTRIES_PER_REQUEST: Final[int] = 100  # Safety cap for entries list length
-=======
->>>>>>> bc3d4eb (fix: improve 422 error display, add CORS OPTIONS support, fix form defaults)
 
     RATE_LIMIT_REQUESTS_PER_MINUTE: Final[int] = 60
     RATE_LIMIT_AI_REQUESTS_PER_MINUTE: Final[int] = 10
