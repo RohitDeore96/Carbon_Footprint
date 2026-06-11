@@ -17,6 +17,7 @@ from app.schemas.ai_schemas import (
 # Carbon footprint schemas (defined here for backward compatibility)
 # ---------------------------------------------------------------------------
 
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 
 from pydantic import BaseModel, Field, field_validator
@@ -126,20 +127,22 @@ class ActivityEntry(BaseModel):
     consumption: ConsumptionMetrics | None = None
 
     @field_validator("date")
-    @staticmethod
-    def _validate_not_future_date(v: str) -> str:
-        """Ensure the date is not in the future."""
-        from datetime import datetime, timezone
+    @classmethod
+    def validate_date_not_future(cls, v: str) -> str:
+        """Reject dates more than 1 day ahead of UTC to account for timezone offsets.
 
+        Users submit local time via datetime-local inputs, which can be up to
+        UTC+14 hours ahead of the server's UTC clock. Comparing only the date
+        portion with a +1 day buffer ensures no legitimate 'today' entry is
+        rejected regardless of the user's timezone.
+        """
         try:
             parsed = datetime.fromisoformat(v.replace("Z", "+00:00"))
-            # Ensure both datetimes are timezone-aware for comparison
-            if parsed.tzinfo is None:
-                parsed = parsed.replace(tzinfo=timezone.utc)
-            if parsed > datetime.now(timezone.utc):
-                raise ValueError("Date cannot be in the future")
         except ValueError:
-            raise
+            raise ValueError("Invalid date format") from None
+        max_allowed = datetime.now(timezone.utc).date() + timedelta(days=1)
+        if parsed.date() > max_allowed:
+            raise ValueError("Date cannot be in the future")
         return v
 
 
@@ -151,20 +154,20 @@ class CarbonCalculationRequest(BaseModel):
     calculation_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?")
 
     @field_validator("calculation_date")
-    @staticmethod
-    def _validate_calc_date_not_future(v: str) -> str:
-        """Ensure the calculation date is not in the future."""
-        from datetime import datetime, timezone
+    @classmethod
+    def validate_calculation_date_not_future(cls, v: str) -> str:
+        """Reject calculation dates more than 1 day ahead of UTC.
 
+        Uses the same timezone-aware logic as ActivityEntry.validate_date_not_future
+        to avoid rejecting legitimate requests from users in UTC+ timezones.
+        """
         try:
             parsed = datetime.fromisoformat(v.replace("Z", "+00:00"))
-            # Ensure both datetimes are timezone-aware for comparison
-            if parsed.tzinfo is None:
-                parsed = parsed.replace(tzinfo=timezone.utc)
-            if parsed > datetime.now(timezone.utc):
-                raise ValueError("Calculation date cannot be in the future")
         except ValueError:
-            raise
+            raise ValueError("Invalid date format") from None
+        max_allowed = datetime.now(timezone.utc).date() + timedelta(days=1)
+        if parsed.date() > max_allowed:
+            raise ValueError("Calculation date cannot be in the future")
         return v
 
 
